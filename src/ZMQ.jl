@@ -1,5 +1,18 @@
 # Support for ZeroMQ, a network and interprocess communication library
 
+module ZMQ
+
+using Base
+import Base.convert
+
+export 
+    #Types
+    ZMQStateError,ZMQContext,ZMQSocket,ZMQMessage,
+    #functions
+    zmq_version,close, get, set, bind, connect,send,recv,
+    #Constants
+    ZMQ_IO_THREADS,ZMQ_MAX_SOCKETS,ZMQ_PAIR,ZMQ_PUB,ZMQ_SUB,ZMQ_REQ,ZMQ_REP,ZMQ_DEALER,ZMQ_DEALER,ZMQ_PULL,ZMQ_PUSH,ZMQ_XPUB,ZMQ_XPUB,ZMQ_XREQ,ZMQ_XREP,ZMQ_UPSTREAM,ZMQ_DOWNSTREAM,ZMQ_MORE,ZMQ_MORE,ZMQ_SNDMORE,ZMQ_POLLIN,ZMQ_POLLOUT,ZMQ_POLLERR,ZMQ_STREAMER,ZMQ_FORWARDER,ZMQ_QUEUE
+
 _jl_libzmq = dlopen("libzmq")
 
 _jl_zmq_version = dlsym(_jl_libzmq, :zmq_version)
@@ -503,3 +516,5 @@ const ZMQ_POLLERR = 4
 const ZMQ_STREAMER = 1
 const ZMQ_FORWARDER = 2
 const ZMQ_QUEUE = 3
+
+end
