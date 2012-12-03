@@ -9,7 +9,7 @@ export
     #Types
     ZMQStateError,ZMQContext,ZMQSocket,ZMQMessage,
     #functions
-    convert, ref, #ZMQ functions should be called with a ZMQ. prefix
+    version,close, get, set, bind, connect,send,recv,convert, ref, 
     #Constants
     ZMQ_IO_THREADS,ZMQ_MAX_SOCKETS,ZMQ_PAIR,ZMQ_PUB,ZMQ_SUB,ZMQ_REQ,ZMQ_REP,ZMQ_DEALER,ZMQ_DEALER,ZMQ_PULL,ZMQ_PUSH,ZMQ_XPUB,ZMQ_XPUB,ZMQ_XREQ,ZMQ_XREP,ZMQ_UPSTREAM,ZMQ_DOWNSTREAM,ZMQ_MORE,ZMQ_MORE,ZMQ_SNDMORE,ZMQ_POLLIN,ZMQ_POLLOUT,ZMQ_POLLERR,ZMQ_STREAMER,ZMQ_FORWARDER,ZMQ_QUEUE
 
@@ -192,6 +192,7 @@ opslist = {
     (:set_backlog,                 :get_backlog,                 19,   ip)
     (:set_reconnect_ivl_max,       :get_reconnect_ivl_max,       21,   ip)
   }
+
 major, minor, patch = version()
 if major == 2
     opslist = vcat(opslist, {
