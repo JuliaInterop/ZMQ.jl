@@ -1,10 +1,10 @@
-
-load ("ZMQ")
-using Base
+require("ZMQ")
 using ZMQ
 
 
 @assert length(ZMQ.version()) == 3
+
+major, minor, patch = ZMQ.version()
 
 ctx=ZMQContext(1)
 
@@ -42,15 +42,23 @@ end
 
 
 s1=ZMQSocket(ctx2, ZMQ_REP)
-ZMQ.set_hwm(s1, 1000)
+if major == 2 
+	ZMQ.set_hwm(s1, 1000)
+else 
+	ZMQ.set_sndhwm(s1, 1000)
+end
 ZMQ.set_linger(s1, 1)
 ZMQ.set_identity(s1, "abcd")
 
 
 @assert ZMQ.get_identity(s1)::String == "abcd"
-@assert ZMQ.get_hwm(s1)::Integer == 1000
+if major == 2
+	@assert ZMQ.get_hwm(s1)::Integer == 1000
+else
+	@assert ZMQ.get_sndhwm(s1)::Integer == 1000
+end
 @assert ZMQ.get_linger(s1)::Integer == 1
-@assert ZMQ.get_rcvmore(s1) == false 
+@assert ZMQ.ismore(s1) == false 
 
 s2=ZMQSocket(ctx2, ZMQ_REQ)
 @assert ZMQ.get_type(s1) == ZMQ_REP 
@@ -60,9 +68,9 @@ ZMQ.bind(s1, "tcp://*:5555")
 ZMQ.connect(s2, "tcp://localhost:5555")
 
 ZMQ.send(s2, ZMQMessage("test request"))
-@assert (ASCIIString[ZMQ.recv(s1)] == "test request")
+@assert (bytestring(ZMQ.recv(s1)) == "test request")
 ZMQ.send(s1, ZMQMessage("test response"))
-@assert (ASCIIString[ZMQ.recv(s2)] == "test response")
+@assert (bytestring(ZMQ.recv(s2)) == "test response")
 
 ZMQ.send(s2, ZMQMessage("another test request"))
 msg = ZMQ.recv(s1)
