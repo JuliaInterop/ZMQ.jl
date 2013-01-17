@@ -2,15 +2,15 @@
 
 **ZMQ.jl** is a [Julia] (http://julialang.org) interface to [ZeroMQ, The Intelligent Transport Layer] (http://zeromq.org). 
 
+This codebase has been tested to work with ZeroMQ version 2. 
+Support for version 3 of ZeroMQ is stil incomplete, and is in progress.
+
 ## Installation
 ```julia
-load("pkg")
-Pkg.init() #If not run earlier
-
 Pkg.add("ZMQ")
 ```
 
-Install the ZeroMQ libraries for your OS using your favourite package manager for your OS. 
+Install the ZeroMQ libraries for your OS using your favourite package manager. 
 
 ## Usage
 
