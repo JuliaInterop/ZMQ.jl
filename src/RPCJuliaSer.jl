@@ -1,5 +1,3 @@
-require("ZMQ")
-
 module RPCJuliaSer
 using Base
 using ZMQ
@@ -12,8 +10,8 @@ export
     #zmq_server_julia
     run_server,zmqquit,parse_eval
 
-require("ZMQ/src/zmq_serialize_julia")
-require("ZMQ/src/zmq_client_julia")
-require("ZMQ/src/zmq_server_julia")
+include("zmq_serialize_julia.jl")
+include("zmq_client_julia.jl")
+include("zmq_server_julia.jl")
 
 end
