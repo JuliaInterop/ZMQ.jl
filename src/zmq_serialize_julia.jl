@@ -13,8 +13,8 @@ function zmq_serialize(socket::ZMQSocket, x, flag::Integer)
     # also requires that we prevent s from being garbage-collected
     # until the callback is called. So the C wrapper should increase
     # the reference count on s, and the callback should decrease it.
-    # Here, for simplicity we just make another copy.
-    zmsg = ZMQMessage(takebuf_string(s))
+    # Here, for simplicity we sjust make another copy.
+    zmsg = ZMQMessage(takebuf_array(s))
     send(socket, zmsg, flag)
 end
 zmq_serialize(socket::ZMQSocket, x) = zmq_serialize(socket, x, 0)
