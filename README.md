@@ -15,7 +15,6 @@ Install the ZeroMQ libraries for your OS using your favourite package manager.
 ## Usage
 
 ```julia
-require("ZMQ")
 using ZMQ
 
 ctx=ZMQContext(1)
