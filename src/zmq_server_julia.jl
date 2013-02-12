@@ -28,7 +28,7 @@ function zmqquit()
     exit()
 end
 
-function run_server(endpoint::ASCIIString)
+function run_server(endpoint::ASCIIString,evaluator::Function)
     global _responder
     zctx = ZMQContext()
     _responder = ZMQSocket(zctx, ZMQ_REP)
@@ -47,7 +47,7 @@ function run_server(endpoint::ASCIIString)
         # Execute the command
         local ret
         try
-            ret = eval(ex)
+            ret = evaluator(ex)
         catch thiserr
             respond_error(_responder, thiserr)
             continue
@@ -60,4 +60,28 @@ function run_server(endpoint::ASCIIString)
         end
     end
 end
-run_server() = run_server("tcp://*:5555")
+run_server() = warn("Deprecated: invoke @run_server instead")
+run_server(f::Function) = run_server("tcp://*:5555",f)
+
+export @run_server
+macro run_server(a...)
+    if length(a)==0
+        return :(run_server($(esc(:(x->eval(x))))))
+    else
+        return :(run_server($a,$(esc(:(x->eval(x))))))
+    end
+end
+
+
+
+
+
+
+
+
+
+
+
+
+
+
