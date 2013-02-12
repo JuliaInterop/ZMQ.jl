@@ -47,7 +47,7 @@ As the functionality matures, this may be split into a separate package.
 ```julia
 require("ZMQ/src/RPCJuliaSer")
 using RPCJuliaSer
-run_server() #using port 5555 by default
+@run_server  #using port 5555 by default
 ```
 
 In a separate Julia session
