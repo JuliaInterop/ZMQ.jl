@@ -14,9 +14,9 @@ function respond_error(responder::ZMQSocket, thiserr::Exception)
     end
 end
 
-function parse_eval(str::ASCIIString)
+function parse_eval(scope, str::ASCIIString)
     p = parse(str)
-    eval(p)
+    eval(scope, p)
 end
 
 function zmqquit()
