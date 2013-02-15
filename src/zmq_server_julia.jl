@@ -25,7 +25,7 @@ function zmqquit()
     exit()
 end
 
-function run_server(endpoint::ASCIIString)
+function run_server(scope, endpoint::ASCIIString)
     global _responder
     zctx = ZMQContext()
     _responder = ZMQSocket(zctx, ZMQ_REP)
@@ -44,7 +44,7 @@ function run_server(endpoint::ASCIIString)
         # Execute the command
         local ret
         try
-            ret = eval(ex)
+            ret = eval(scope,ex)
         catch thiserr
             respond_error(_responder, thiserr)
             continue
@@ -58,3 +58,6 @@ function run_server(endpoint::ASCIIString)
     end
 end
 run_server() = run_server("tcp://*:5555")
+run_server(endpoint::ASCIIString) = run_server(current_module(), endpoint)
+
+current_module() = ccall(:jl_get_current_module, Any, ())::Module
