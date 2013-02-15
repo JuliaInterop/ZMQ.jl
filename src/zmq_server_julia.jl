@@ -15,10 +15,7 @@ function respond_error(responder::ZMQSocket, thiserr::Exception)
 end
 
 function parse_eval(str::ASCIIString)
-    p, indx = parse(str)
-    if indx < length(str)
-        error("Could not completely parse string", str)
-    end
+    p = parse(str)
     eval(p)
 end
 
