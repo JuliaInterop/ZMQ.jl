@@ -24,7 +24,7 @@ end
 # Within Julia it may be better to use a quote block, but this will
 # surely be the easy way from other languages
 function zmqparse(requester::ZMQSocket, str::ASCIIString)
-    ex = :(parse_eval($str))
+    ex = :(parse_eval(RPCJuliaSer.current_module(), $str))
     zmq_serialize(requester, ex)
     zmq_deserialize(requester)
 end
