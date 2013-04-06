@@ -11,7 +11,7 @@ before_install:
     - sudo apt-get update -qq -y
     - sudo apt-get install patchelf gfortran llvm-3.2-dev libsuitesparse-dev libncurses5-dev libopenblas-dev liblapack-dev libarpack2-dev libfftw3-dev libgmp-dev libpcre3-dev libunwind7-dev libreadline-dev libdouble-conversion-dev libopenlibm-dev -y
     - sudo apt-get install julia
-    - sudo apt-get install libzmq1 libzmq-dev libzmq-dbg
+    - sudo apt-get install libzmq3 libzmq-dev libzmq-dbg
     - git config --global user.name "Travis User"
     - git config --global user.email "travis@example.net"
 script:
