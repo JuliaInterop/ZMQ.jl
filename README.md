@@ -1,9 +1,10 @@
 # A Julia interface to ZeroMQ
+[![Build Status](https://travis-ci.org/aviks/ZMQ.jl.png)](https://travis-ci.org/aviks/ZMQ.jl)
 
 **ZMQ.jl** is a [Julia] (http://julialang.org) interface to [ZeroMQ, The Intelligent Transport Layer] (http://zeromq.org). 
 
-This codebase has been tested to work with ZeroMQ version 2. 
-Support for version 3 of ZeroMQ is stil incomplete, and is in progress.
+This codebase has been tested to work with ZeroMQ version 2.2.0 and 3.2.2. The unit tests within this package run successfully on both versions of the library. 
+
 
 ## Installation
 ```julia
