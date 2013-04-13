@@ -10,13 +10,6 @@ ctx=ZMQContext(1)
 
 @assert typeof(ctx) == ZMQContext
 
-try 
-	ZMQContext(-1)
-	@assert false
-catch ex
-	@assert typeof(ex) == ZMQStateError
-end 
-
 ZMQ.close(ctx)
 
 #try to create socket with expired context
