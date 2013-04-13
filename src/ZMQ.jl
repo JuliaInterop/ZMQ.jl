@@ -412,6 +412,15 @@ function send(socket::ZMQSocket, zmsg::ZMQMessage, flag::Integer)
         throw(ZMQStateError(jl_zmq_error_str()))
     end
 end
+function send(socket::ZMQSocket, msg::String, flag::Integer)
+    rc = ccall((:zmq_send, :libzmq), Int32, 
+            (Ptr{Void}, Ptr{Uint8}, Uint, Int32), 
+            socket.data, msg, length(msg), flag)
+    if rc == -1
+        throw(ZMQStateError(jl_zmq_error_str()))
+    end
+end
+send(socket::ZMQSocket, msg::String) = send(socket, msg, int32(0))
 end # end v3only
 recv(socket::ZMQSocket) = recv(socket, int32(0))
 function recv(socket::ZMQSocket, noblock::Bool)
