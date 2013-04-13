@@ -51,76 +51,60 @@ end
 _zmq_major, _zmq_minor, _zmq_path = version()
 
 
+# define macro to enable version specific code
+macro v2only(ex)
+    _zmq_major == 2 ? esc(ex) : :nothing
+end
+macro v3only(ex)
+    _zmq_major >= 3 ? esc(ex) : :nothing
+end
+
 
 ## Contexts ##
 # Provide the same constructor API for version 2 and version 3, even
 # though the underlying functions are changing
-if _zmq_major < 3
-    global ZMQContext
-    type ZMQContext
-        data::Ptr{Void}
+type ZMQContext
+    data::Ptr{Void}
 
-        function ZMQContext(n::Integer)
-            p = ccall((:zmq_init, :libzmq), Ptr{Void},  (Int32,), n)
-            if p == C_NULL
-    	    throw(ZMQStateError(jl_zmq_error_str()))
-            end
-            zctx = new(p)
-            finalizer(zctx, close)
-            return zctx
+    function ZMQContext(n::Integer)
+        @v2only p = ccall((:zmq_init, :libzmq), Ptr{Void},  (Int32,), n)
+        @v3only p = ccall((:zmq_ctx_new, :libzmq), Ptr{Void},  ())
+        if p == C_NULL
+            throw(ZMQStateError(jl_zmq_error_str()))
         end
-    end
-else  # Versions 3 and higher
-    global ZMQContext
-    type ZMQContext
-        data::Ptr{Void}
-
-        function ZMQContext(n::Integer)
-            p = ccall((:zmq_ctx_new, :libzmq), Ptr{Void},  ())
-            if p == C_NULL
-    	    throw(ZMQStateError(jl_zmq_error_str()))
-            end
-            zctx = new(p)
-            finalizer(zctx, close)
-            set(zctx, ZMQ_IO_THREADS, n)
-            return zctx
-        end
+        zctx = new(p)
+        finalizer(zctx, close)
+        return zctx
     end
 end
 ZMQContext() = ZMQContext(1)
-if _zmq_major < 3
-    global close
-    function close(ctx::ZMQContext)
-        rc = ccall((:zmq_term, :libzmq), Int32,  (Ptr{Void},), ctx.data)
-        if rc != 0
-            throw(ZMQStateError(jl_zmq_error_str()))
-        end
-    end
-else  # Versions 3 and higher
-    global close
-    function close(ctx::ZMQContext)
-        rc = ccall((:zmq_ctx_destroy, :libzmq), Int32,  (Ptr{Void},), ctx.data)
-        if rc != 0
-            throw(ZMQStateError(jl_zmq_error_str()))
-        end
-    end
-    global get
-    function get(ctx::ZMQContext, option::Integer)
-        val = ccall((:zmq_ctx_get, :libzmq), Int32, (Ptr{Void}, Int32), ctx.data, option)
-        if val < 0
-            throw(ZMQStateError(jl_zmq_error_str()))
-        end
-        return val
-    end
-    global set
-    function set(ctx::ZMQContext, option::Integer, value::Integer)
-        rc = ccall((:zmq_ctx_set, :libzmq), Int32, (Ptr{Void}, Int32, Int32), ctx.data, option, value)
-        if rc != 0
-            throw(ZMQStateError(jl_zmq_error_str()))
-        end
+
+function close(ctx::ZMQContext)
+    @v2only rc = ccall((:zmq_term, :libzmq), Int32,  (Ptr{Void},), ctx.data)
+    @v3only rc = ccall((:zmq_ctx_destroy, :libzmq), Int32,  (Ptr{Void},), ctx.data)
+    if rc != 0
+        throw(ZMQStateError(jl_zmq_error_str()))
     end
 end
 term(ctx::ZMQContext) = close(ctx)
+
+@v3only begin
+function get(ctx::ZMQContext, option::Integer)
+    val = ccall((:zmq_ctx_get, :libzmq), Int32, (Ptr{Void}, Int32), ctx.data, option)
+    if val < 0
+        throw(ZMQStateError(jl_zmq_error_str()))
+    end
+    return val
+end
+
+function set(ctx::ZMQContext, option::Integer, value::Integer)
+    rc = ccall((:zmq_ctx_set, :libzmq), Int32, (Ptr{Void}, Int32, Int32), ctx.data, option, value)
+    if rc != 0
+        throw(ZMQStateError(jl_zmq_error_str()))
+    end
+end
+end # end v3only
+
 
 ## Sockets ##
 type ZMQSocket
@@ -129,7 +113,7 @@ type ZMQSocket
     function ZMQSocket(ctx::ZMQContext, typ::Integer)
         p = ccall((:zmq_socket, :libzmq), Ptr{Void},  (Ptr{Void}, Int32), ctx.data, typ)
         if p == C_NULL
-	    throw(ZMQStateError(jl_zmq_error_str()))
+            throw(ZMQStateError(jl_zmq_error_str()))
         end
         socket = new(p)
         finalizer(socket, close)
@@ -140,7 +124,7 @@ end
 function close(socket::ZMQSocket)
     rc = ccall((:zmq_close, :libzmq), Int32,  (Ptr{Void},), socket.data)
     if rc != 0
-	throw(ZMQStateError(jl_zmq_error_str()))
+        throw(ZMQStateError(jl_zmq_error_str()))
     end
 end
 
@@ -410,25 +394,25 @@ function send(socket::ZMQSocket, zmsg::ZMQMessage, noblock::Bool, sndmore::Bool)
     send(socket, zmsg, flag)
 end
 
-if _zmq_major == 2
-    global send
-    function send(socket::ZMQSocket, zmsg::ZMQMessage, flag::Integer)
-        rc = ccall((:zmq_send, :libzmq), Int32, (Ptr{Void}, Ptr{Uint8}, Int32),
-                   socket.data, zmsg.obj, flag)
-        if rc != 0
-            throw(ZMQStateError(jl_zmq_error_str()))
-        end
-    end
-elseif _zmq_major == 3
-    global send
-    function send(socket::ZMQSocket, zmsg::ZMQMessage, flag::Integer)
-        rc = ccall((:zmq_msg_send, :libzmq), Int32, (Ptr{Void}, Ptr{Uint8}, Int32),
-                    zmsg.obj, socket.data, flag)
-        if rc == -1
-            throw(ZMQStateError(jl_zmq_error_str()))
-        end
+@v2only begin
+function send(socket::ZMQSocket, zmsg::ZMQMessage, flag::Integer)
+    rc = ccall((:zmq_send, :libzmq), Int32, (Ptr{Void}, Ptr{Uint8}, Int32),
+               socket.data, zmsg.obj, flag)
+    if rc != 0
+        throw(ZMQStateError(jl_zmq_error_str()))
     end
 end
+end # end v2only
+
+@v3only begin
+function send(socket::ZMQSocket, zmsg::ZMQMessage, flag::Integer)
+    rc = ccall((:zmq_msg_send, :libzmq), Int32, (Ptr{Void}, Ptr{Uint8}, Int32),
+                zmsg.obj, socket.data, flag)
+    if rc == -1
+        throw(ZMQStateError(jl_zmq_error_str()))
+    end
+end
+end # end v3only
 recv(socket::ZMQSocket) = recv(socket, int32(0))
 function recv(socket::ZMQSocket, noblock::Bool)
     flag::Int32 = 0;
@@ -436,30 +420,29 @@ function recv(socket::ZMQSocket, noblock::Bool)
     recv(socket, flag)
 end
 
-if _zmq_major == 2
-    global recv
-    function recv(socket::ZMQSocket, flag::Integer)
-        zmsg = ZMQMessage()
-        rc = ccall((:zmq_recv, :libzmq), Int32, (Ptr{Void}, Ptr{Void}, Int32),
-                   socket.data, zmsg.obj, flag)
-        if rc != 0
-            throw(ZMQStateError(jl_zmq_error_str()))
-        end
-        return zmsg
+@v2only begin
+function recv(socket::ZMQSocket, flag::Integer)
+    zmsg = ZMQMessage()
+    rc = ccall((:zmq_recv, :libzmq), Int32, (Ptr{Void}, Ptr{Void}, Int32),
+               socket.data, zmsg.obj, flag)
+    if rc != 0
+        throw(ZMQStateError(jl_zmq_error_str()))
     end
-elseif _zmq_major == 3
-    global recv
-    function recv(socket::ZMQSocket, flag::Integer)
-        zmsg = ZMQMessage()
-        rc = ccall((:zmq_msg_recv, :libzmq), Int32, (Ptr{Void}, Ptr{Void}, Int32),
-                    zmsg.obj, socket.data, flag)
-        if rc == -1
-            throw(ZMQStateError(jl_zmq_error_str()))
-        end
-        return zmsg
-    end
-
+    return zmsg
 end
+end # end v2only
+
+@v3only begin
+function recv(socket::ZMQSocket, flag::Integer)
+    zmsg = ZMQMessage()
+    rc = ccall((:zmq_msg_recv, :libzmq), Int32, (Ptr{Void}, Ptr{Void}, Int32),
+                zmsg.obj, socket.data, flag)
+    if rc == -1
+        throw(ZMQStateError(jl_zmq_error_str()))
+    end
+    return zmsg
+end
+end # end v3only
 
 
 # A "serialized" message includes information needed to interpret the
