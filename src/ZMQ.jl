@@ -361,23 +361,21 @@ msg_data(zmsg::ZMQMessage) = ccall((:zmq_msg_data, :libzmq), Ptr{Uint8}, (Ptr{Ui
 # Determine the number of bytes in a message
 msg_size(zmsg::ZMQMessage) = ccall((:zmq_msg_size, :libzmq), Int, (Ptr{Uint8},) , zmsg.obj)
 
-if _zmq_major > 2
-    
-    global get
-    function get(zmsg::ZMQMessage, property::Integer)
-        val = ccall((:zmq_msg_get, :libzmq), Int32, (Ptr{Void}, Int32), zmsg.data, property)
-        if val < 0
-            throw(ZMQStateError(jl_zmq_error_str()))
-        end
-    end
-    global set
-    function set(zmsg::ZMQMessage, property::Integer, value::Integer)
-        rc = ccall((:zmq_msg_set, :libzmq), Int32, (Ptr{Void}, Int32, Int32), zmsg.data, property, value)
-        if rc < 0
-            throw(ZMQStateError(jl_zmq_error_str()))
-        end
+@v3only begin
+function get(zmsg::ZMQMessage, property::Integer)
+    val = ccall((:zmq_msg_get, :libzmq), Int32, (Ptr{Void}, Int32), zmsg.data, property)
+    if val < 0
+        throw(ZMQStateError(jl_zmq_error_str()))
     end
 end
+function set(zmsg::ZMQMessage, property::Integer, value::Integer)
+    rc = ccall((:zmq_msg_set, :libzmq), Int32, (Ptr{Void}, Int32, Int32), zmsg.data, property, value)
+    if rc < 0
+        throw(ZMQStateError(jl_zmq_error_str()))
+    end
+end
+end # end v3only
+
 ## Send/receive messages
 #
 # Julia defines two types of ZMQ messages: "raw" and "serialized". A "raw"
