@@ -424,7 +424,7 @@ elseif _zmq_major == 3
     function send(socket::ZMQSocket, zmsg::ZMQMessage, flag::Integer)
         rc = ccall((:zmq_msg_send, :libzmq), Int32, (Ptr{Void}, Ptr{Uint8}, Int32),
                     zmsg.obj, socket.data, flag)
-        if rc != 0
+        if rc == -1
             throw(ZMQStateError(jl_zmq_error_str()))
         end
     end
@@ -453,7 +453,7 @@ elseif _zmq_major == 3
         zmsg = ZMQMessage()
         rc = ccall((:zmq_msg_recv, :libzmq), Int32, (Ptr{Void}, Ptr{Void}, Int32),
                     zmsg.obj, socket.data, flag)
-        if rc != 0
+        if rc == -1
             throw(ZMQStateError(jl_zmq_error_str()))
         end
         return zmsg
