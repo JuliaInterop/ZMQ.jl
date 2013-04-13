@@ -1,7 +1,7 @@
 require("ZMQ")
 using ZMQ
 
-
+println("Testing with ZMQ version $(ZMQ.version())")
 @assert length(ZMQ.version()) == 3
 
 major, minor, patch = ZMQ.version()
