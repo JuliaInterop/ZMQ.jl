@@ -332,7 +332,7 @@ end
 
 # AbstractArray behaviors:
 similar(a::Message, T, dims::Dims) = Array(T, dims)
-length(zmsg::Message) = ccall((:zmq_msg_size, :libzmq), Int, (Ptr{Message},) , &zmsg)
+length(zmsg::Message) = ccall((:zmq_msg_size, :libzmq), Csize_t, (Ptr{Message},) , &zmsg)
 size(zmsg::Message) = (length(zmsg),)
 stride(zmsg::Message, i::Integer) = i <= 1 ? 1 : length(zmsg)
 convert(::Type{Ptr{Uint8}}, zmsg::Message) = ccall((:zmq_msg_data, :libzmq), Ptr{Uint8}, (Ptr{Message},), &zmsg)
