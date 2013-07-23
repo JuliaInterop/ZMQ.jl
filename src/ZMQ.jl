@@ -3,7 +3,7 @@
 module ZMQ
 
 using Base
-import Base: convert, ref, get, bytestring
+import Base: convert, ref, get, bytestring, length, size, stride, similar, getindex, setindex!
 
 export 
     #Types
@@ -289,7 +289,7 @@ end
 
 ## Messages ##
 typealias ByteArray Union(Array{Uint8,1}, ByteString)
-type Message
+type Message <: AbstractArray{Uint8,1}
     # 32 bytes (for v3) + a pointer (for v2)
     w0::Int64
     w1::Int64
@@ -318,6 +318,7 @@ type Message
         return zmsg
     end
 end
+
 # Construct a message from a string (including copying the string)
 # In many cases it's more efficient to allocate the zmsg first and
 # then build the data in-place, but this is here for convenience
@@ -325,30 +326,37 @@ function Message(data::ByteArray)
     len = length(data)
     zmsg = Message(len)
     ccall(:memcpy, Ptr{Void}, (Ptr{Uint8}, Ptr{Uint8}, Uint),
-          msg_data(zmsg), data, len)
+          zmsg, data, len)
     return zmsg
 end
 
-# Convert message to array of Uint8 with Uint8[zmsg]
-# Copies the data
-function ref(::Type{Uint8}, zmsg::Message)
-    len = msg_size(zmsg)
-    data = Array(Uint8, len)
-    ccall(:memcpy, Ptr{Void}, (Ptr{Void}, Ptr{Void}, Uint),
-          data, msg_data(zmsg), len)
-    return data
+# AbstractArray behaviors:
+similar(a::Message, T, dims::Dims) = Array(T, dims)
+length(zmsg::Message) = ccall((:zmq_msg_size, :libzmq), Int, (Ptr{Message},) , &zmsg)
+size(zmsg::Message) = (length(zmsg),)
+stride(zmsg::Message, i::Integer) = i <= 1 ? 1 : length(zmsg)
+convert(::Type{Ptr{Uint8}}, zmsg::Message) = ccall((:zmq_msg_data, :libzmq), Ptr{Uint8}, (Ptr{Message},), &zmsg)
+function getindex(a::Message, i::Integer)
+    if i < 1 || i > length(a)
+        throw(BoundsError())
+    end
+    unsafe_load(pointer(a), i)
 end
-# Convert message to string with ASCIIString[zmsg]
-# Copies the data
-ref(::Type{ASCIIString}, zmsg::Message) = bytestring(msg_data(zmsg), msg_size(zmsg))
-bytestring(zmsg::Message) = bytestring(msg_data(zmsg), msg_size(zmsg))
+function setindex!(a::Message, v, i::Integer)
+    if i < 1 || i > length(a)
+        throw(BoundsError())
+    end
+    unsafe_store(pointer(a), v, i)
+end
+
+# Convert message to string (copies data)
+bytestring(zmsg::Message) = bytestring(pointer(zmsg), length(zmsg))
+
 # Build an IOStream from a message
 # Copies the data
 function convert(::Type{IOStream}, zmsg::Message)
-    len = msg_size(zmsg)
-    a = pointer_to_array(msg_data(zmsg), (len,))
-    s = memio()
-    write(s, a)
+    s = IOBuffer()
+    write(s, zmsg)
     return s
 end
 # Close a message. You should not need to call this manually (let the
@@ -359,11 +367,6 @@ function close(zmsg::Message)
         throw(StateError(jl_zmq_error_str()))
     end
 end
-# Low-level functions
-# Extract a pointer to the ByteArray data in a message
-msg_data(zmsg::Message) = ccall((:zmq_msg_data, :libzmq), Ptr{Uint8}, (Ptr{Message},), &zmsg)
-# Determine the number of bytes in a message
-msg_size(zmsg::Message) = ccall((:zmq_msg_size, :libzmq), Int, (Ptr{Message},) , &zmsg)
 
 @v3only begin
 function get(zmsg::Message, property::Integer)
