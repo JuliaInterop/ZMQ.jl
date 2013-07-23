@@ -68,8 +68,8 @@ o=convert(IOStream, msg)
 seek(o, 0)
 @assert (takebuf_string(o)=="another test request")
 
-ZMQ.close(s1)
-ZMQ.close(s2)
+#ZMQ.close(s1)
+#ZMQ.close(s2)
 ZMQ.close(ctx2)
 
 

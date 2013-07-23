@@ -48,11 +48,43 @@ macro v3only(ex)
 end
 
 
+## Sockets ##
+type Socket
+    data::Ptr{Void}
+
+    # ctx should be ::Context, but forward type references are not allowed
+    function Socket(ctx, typ::Integer)
+        p = ccall((:zmq_socket, :libzmq), Ptr{Void},  (Ptr{Void}, Cint), ctx.data, typ)
+        if p == C_NULL
+            throw(StateError(jl_zmq_error_str()))
+        end
+        socket = new(p)
+        finalizer(socket, close)
+        push!(ctx.sockets, socket)
+        return socket
+    end
+end
+
+function close(socket::Socket)
+    if socket.data != C_NULL
+        rc = ccall((:zmq_close, :libzmq), Cint,  (Ptr{Void},), socket.data)
+        if rc != 0
+            throw(StateError(jl_zmq_error_str()))
+        end
+        socket.data = C_NULL
+    end
+end
+
+
 ## Contexts ##
 # Provide the same constructor API for version 2 and version 3, even
 # though the underlying functions are changing
 type Context
     data::Ptr{Void}
+
+    # need to keep a list of sockets for this Context in order to
+    # close them before finalizing (otherwise zmq_term will hang)
+    sockets::Vector{Socket}
 
     function Context(n::Integer)
         @v2only p = ccall((:zmq_init, :libzmq), Ptr{Void},  (Cint,), n)
@@ -60,7 +92,7 @@ type Context
         if p == C_NULL
             throw(StateError(jl_zmq_error_str()))
         end
-        zctx = new(p)
+        zctx = new(p, Array(Socket,0))
         finalizer(zctx, close)
         return zctx
     end
@@ -68,10 +100,16 @@ end
 Context() = Context(1)
 
 function close(ctx::Context)
-    @v2only rc = ccall((:zmq_term, :libzmq), Cint,  (Ptr{Void},), ctx.data)
-    @v3only rc = ccall((:zmq_ctx_destroy, :libzmq), Cint,  (Ptr{Void},), ctx.data)
-    if rc != 0
-        throw(StateError(jl_zmq_error_str()))
+    if ctx.data != C_NULL # don't close twice!
+        for s in ctx.sockets
+            close(s)
+        end
+        @v2only rc = ccall((:zmq_term, :libzmq), Cint,  (Ptr{Void},), ctx.data)
+        @v3only rc = ccall((:zmq_ctx_destroy, :libzmq), Cint,  (Ptr{Void},), ctx.data)
+        if rc != 0
+            throw(StateError(jl_zmq_error_str()))
+        end
+        ctx.data = C_NULL
     end
 end
 term(ctx::Context) = close(ctx)
@@ -92,29 +130,6 @@ function set(ctx::Context, option::Integer, value::Integer)
     end
 end
 end # end v3only
-
-
-## Sockets ##
-type Socket
-    data::Ptr{Void}
-
-    function Socket(ctx::Context, typ::Integer)
-        p = ccall((:zmq_socket, :libzmq), Ptr{Void},  (Ptr{Void}, Cint), ctx.data, typ)
-        if p == C_NULL
-            throw(StateError(jl_zmq_error_str()))
-        end
-        socket = new(p)
-        finalizer(socket, close)
-        return socket
-    end
-end
-
-function close(socket::Socket)
-    rc = ccall((:zmq_close, :libzmq), Cint,  (Ptr{Void},), socket.data)
-    if rc != 0
-        throw(StateError(jl_zmq_error_str()))
-    end
-end
 
 
 # Getting and setting socket options
