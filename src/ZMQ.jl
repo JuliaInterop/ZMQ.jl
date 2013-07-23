@@ -9,7 +9,7 @@ export
     #Types
     StateError,Context,Socket,Message,
     #functions
-    version,close, get, set, bind, connect,send,recv,convert, ref, 
+    close, get, set, bind, connect,send,recv,convert, ref, 
     #Constants
     IO_THREADS,MAX_SOCKETS,PAIR,PUB,SUB,REQ,REP,DEALER,DEALER,PULL,PUSH,XPUB,XPUB,XREQ,XREP,UPSTREAM,DOWNSTREAM,MORE,MORE,SNDMORE,POLLIN,POLLOUT,POLLERR,STREAMER,FORWARDER,QUEUE
 
@@ -40,23 +40,17 @@ function jl_zmq_error_str()
     end
 end
 
-let major = zeros(Int32, 1), minor = zeros(Int32, 1), patch = zeros(Int32, 1)
-global version
-function version()
+const version = let major = zeros(Int32, 1), minor = zeros(Int32, 1), patch = zeros(Int32, 1)
     ccall((:zmq_version, :libzmq), Void, (Ptr{Int32}, Ptr{Int32}, Ptr{Int32}), major, minor, patch)
-    return (major[1], minor[1], patch[1])
+    VersionNumber(major[1], minor[1], patch[1])
 end
-end
-
-_zmq_major, _zmq_minor, _zmq_path = version()
-
 
 # define macro to enable version specific code
 macro v2only(ex)
-    _zmq_major == 2 ? esc(ex) : :nothing
+    version.major == 2 ? esc(ex) : :nothing
 end
 macro v3only(ex)
-    _zmq_major >= 3 ? esc(ex) : :nothing
+    version.major >= 3 ? esc(ex) : :nothing
 end
 
 
@@ -142,8 +136,7 @@ opslist = {
     (:set_reconnect_ivl_max,       :get_reconnect_ivl_max,       21,   ip)
   }
 
-major, minor, patch = version()
-if major == 2
+if version.major == 2
     opslist = vcat(opslist, {
     (:set_hwm,                     :get_hwm,                      1, u64p)
     (:set_swap,                    :get_swap,                     3, i64p)
@@ -156,7 +149,7 @@ if major == 2
     (nothing,                      :get_events,                  15, u32p)
     (:set_recovery_ivl_msec,       :get_recovery_ivl_msec,       20, i64p)
     })
-elseif major == 3
+else
     opslist = vcat(opslist, {
     (:set_rate,                    :get_rate,                     8,   ip)
     (:set_recovery_ivl,            :get_recovery_ivl,             9,   ip)
@@ -175,7 +168,7 @@ elseif major == 3
     (:set_tcp_keepalive_intvl,     :get_tcp_keepalive_intvl,     37,   ip)
     })
 end
-if major > 2 || (major == 2 && minor > 1)
+if version > v"2.1"
     opslist = vcat(opslist, {
     (:set_rcvtimeo,                :get_rcvtimeo,                27,   ip)
     (:set_sndtimeo,                :get_sndtimeo,                28,   ip)
@@ -211,7 +204,7 @@ for (fset, fget, k, p) in opslist
 end
 # For some functions, the publicly-visible versions should require &
 # return boolean
-if major == 2
+if version.major == 2
     global set_mcast_loop
     set_mcast_loop(socket::Socket, val::Bool) = _zmq_setsockopt_mcast_loop(socket, val)
     global get_mcast_loop
@@ -226,13 +219,12 @@ ismore(socket::Socket) = get_rcvmore(socket)
 
 # Socket options of string type
 let u8ap = zeros(Uint8, 255), sz = zeros(Uint, 1)
-major, minor, patch = version()
 opslist = {
     (:set_identity,                :get_identity,                5)
     (:set_subscribe,               nothing,                      6)
     (:set_unsubscribe,             nothing,                      7)
     }
-if major == 3
+if version.major >= 3
     opslist = vcat(opslist, {
     (nothing,                      :get_last_endpoint,          32)
     (:set_tcp_accept_filter,       nothing,                     38)
