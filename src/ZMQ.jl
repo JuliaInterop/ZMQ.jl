@@ -329,19 +329,19 @@ type Message <: AbstractArray{Uint8,1}
         return zmsg
     end
     # Create a message with a given String or Array as a buffer (for send)
-    Message(m::ByteString) = Message(m, convert(Ptr{Uint8}, m), length(m))
+    Message(m::ByteString) = Message(m, convert(Ptr{Uint8}, m), sizeof(m))
     function Message{T}(origin, m::Ptr{T}, len::Integer)
         zmsg = new()
         zmsg.bufferorigin = origin # should be origin of data pointed to by m
-        rc = ccall((:zmq_msg_init_data, zmq), Cint, (Ptr{Message}, Ptr{T}, Csize_t, Ptr{Void}, Ptr{Void}), &zmsg, m, len*sizeof(T), C_NULL, C_NULL)
+        rc = ccall((:zmq_msg_init_data, zmq), Cint, (Ptr{Message}, Ptr{T}, Csize_t, Ptr{Void}, Ptr{Void}), &zmsg, m, len, C_NULL, C_NULL)
         if rc != 0
             throw(StateError(jl_zmq_error_str()))
         end
         finalizer(zmsg, close)
         return zmsg
     end
-    Message(m::ByteString) = Message(m, convert(Ptr{Uint8}, m), length(m))
-    Message{T}(m::Array{T}) = Message(m, convert(Ptr{T}, m), length(m))
+    Message(m::ByteString) = Message(m, convert(Ptr{Uint8}, m), sizeof(m))
+    Message{T}(m::Array{T}) = Message(m, convert(Ptr{T}, m),  sizeof(m))
 end
 
 # AbstractArray behaviors:
@@ -437,13 +437,13 @@ function send{T}(socket::Socket, msg::Ptr{T}, len, flag=int32(0))
     end
     rc = ccall((:zmq_send, zmq), Cint, 
             (Ptr{Void}, Ptr{T}, Csize_t, Cint), 
-            socket.data, msg, len * sizeof(T), flag)
+            socket.data, msg, len, flag)
     if rc == -1
         throw(StateError(jl_zmq_error_str()))
     end
 end
-send(socket::Socket, msg::String, flag=int32(0)) = send(socket, convert(Ptr{Uint8}, msg), length(msg), flag)
-send{T}(socket::Socket, msg::Array{T}, flag=int32(0)) = send(socket, convert(Ptr{T}, msg), length(msg), flag)
+send(socket::Socket, msg::String, flag=int32(0)) = send(socket, convert(Ptr{Uint8}, msg), sizeof(msg), flag)
+send{T}(socket::Socket, msg::Array{T}, flag=int32(0)) = send(socket, convert(Ptr{T}, msg), sizeof(msg), flag)
 end # end v3only
 
 @v2only begin
