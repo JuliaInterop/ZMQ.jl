@@ -13,7 +13,7 @@ export
     #functions
     close, get, set, bind, connect,send,recv,convert, ref, 
     #Constants
-    IO_THREADS,MAX_SOCKETS,PAIR,PUB,SUB,REQ,REP,DEALER,DEALER,PULL,PUSH,XPUB,XPUB,XREQ,XREP,UPSTREAM,DOWNSTREAM,MORE,MORE,SNDMORE,POLLIN,POLLOUT,POLLERR,STREAMER,FORWARDER,QUEUE
+    IO_THREADS,MAX_SOCKETS,PAIR,PUB,SUB,REQ,REP,ROUTER,DEALER,PULL,PUSH,XPUB,XPUB,XREQ,XREP,UPSTREAM,DOWNSTREAM,MORE,MORE,SNDMORE,POLLIN,POLLOUT,POLLERR,STREAMER,FORWARDER,QUEUE
 
 # A server will report most errors to the client over a Socket, but
 # errors in ZMQ state can't be reported because the socket may be
@@ -384,13 +384,14 @@ end
 
 @v3only begin
 function get(zmsg::Message, property::Integer)
-    val = ccall((:zmq_msg_get, zmq), Cint, (Ptr{Void}, Cint), zmsg.data, property)
+    val = ccall((:zmq_msg_get, zmq), Cint, (Ptr{Message}, Cint), &zmsg, property)
     if val < 0
         throw(StateError(jl_zmq_error_str()))
     end
+    val
 end
 function set(zmsg::Message, property::Integer, value::Integer)
-    rc = ccall((:zmq_msg_set, zmq), Cint, (Ptr{Void}, Cint, Cint), zmsg.data, property, value)
+    rc = ccall((:zmq_msg_set, zmq), Cint, (Ptr{Message}, Cint, Cint), &zmsg, property, value)
     if rc < 0
         throw(StateError(jl_zmq_error_str()))
     end
