@@ -342,6 +342,12 @@ type Message <: AbstractArray{Uint8,1}
     end
     Message(m::ByteString) = Message(m, convert(Ptr{Uint8}, m), sizeof(m))
     Message{T}(m::Array{T}) = Message(m, convert(Ptr{T}, m),  sizeof(m))
+    function Message(io::IOBuffer)
+        if !io.readable || !io.seekable
+            error("byte read failed")
+        end
+        Message(io, convert(Ptr{Uint8}, io.data), io.size)
+    end
 end
 
 # AbstractArray behaviors:
