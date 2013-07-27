@@ -412,6 +412,11 @@ end # end v3only
 #   send(socket, zmsg)
 #   zmsg = recv(socket)
 
+#Send/Recv Options
+const NOBLOCK = 1
+const DONTWAIT = 1
+const SNDMORE = 2
+
 @v2only begin
 function send(socket::Socket, zmsg::Message, flag=int32(0))
     rc = ccall((:zmq_send, zmq), Cint, (Ptr{Void}, Ptr{Message}, Cint),
@@ -453,30 +458,42 @@ send{T}(socket::Socket, msg::Array{T}, flag=int32(0)) = send(socket, convert(Ptr
 end # end v3only
 
 @v2only begin
-function recv(socket::Socket, flag=int32(0))
+function recv(socket::Socket)
     zmsg = Message()
-    if (get_events(socket) & POLLIN) == 0
-        wait(socket; readable = true)
-    end
-    rc = ccall((:zmq_recv, zmq), Cint, (Ptr{Void}, Ptr{Message}, Cint),
-               socket.data, &zmsg, flag)
-    if rc != 0
-        throw(StateError(jl_zmq_error_str()))
+    while true
+        rc = ccall((:zmq_recv, zmq), Cint, (Ptr{Void}, Ptr{Message},  Cint),
+                    socket.data, &zmsg, NOBLOCK)
+        if rc != 0
+            if errno() == Base.EAGAIN
+                while (get_events(socket) & POLLIN) == 0
+                    wait(socket; readable = true)
+                end
+                continue
+            end 
+            throw(StateError(jl_zmq_error_str()))
+        end
+        break
     end
     return zmsg
 end
 end # end v2only
 
 @v3only begin
-function recv(socket::Socket, flag=int32(0))
+function recv(socket::Socket)
     zmsg = Message()
-    if (get_events(socket) & POLLIN) == 0
-        wait(socket; readable = true)
-    end
-    rc = ccall((:zmq_msg_recv, zmq), Cint, (Ptr{Message}, Ptr{Void}, Cint),
-                &zmsg, socket.data, flag)
-    if rc == -1
-        throw(StateError(jl_zmq_error_str()))
+    while true
+        rc = ccall((:zmq_msg_recv, zmq), Cint, (Ptr{Message}, Ptr{Void}, Cint),
+                    &zmsg, socket.data, NOBLOCK)
+        if rc == -1
+            if errno() == Base.EAGAIN
+                while (get_events(socket) & POLLIN) == 0
+                    wait(socket; readable = true)
+                end
+                continue
+            end 
+            throw(StateError(jl_zmq_error_str()))
+        end
+        break
     end
     return zmsg
 end
@@ -507,11 +524,6 @@ const DOWNSTREAM = PUSH
 
 #Message options
 const MORE = 1
-
-#Send/Recv Options
-const NOBLOCK = 1
-const DONTWAIT = 1
-const SNDMORE = 2
 
 #IO Multiplexing
 const POLLIN = 1
