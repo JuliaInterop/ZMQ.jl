@@ -234,7 +234,7 @@ ismore(socket::Socket) = get_rcvmore(socket)
 # Raw FD access
 @unix_only fd(socket::Socket) = RawFD(get_fd(socket))
 @windows_only fd(socket::Socket) = WindowsRawSocket(get_fd(socket))
-wait(socket::Socket; readable=false, writeable=false) = wait(fd(socket); readable=readable, writeable=writeable)
+wait(socket::Socket; readable=false, writable=false) = wait(fd(socket); readable=readable, writable=writable)
 
 
 # Socket options of string type
@@ -434,7 +434,7 @@ end # end v2only
 @v3only begin
 function send(socket::Socket, zmsg::Message, flag=int32(0))
     if (get_events(socket) & POLLOUT) == 0
-        wait(socket; writeable = true)
+        wait(socket; writable = true)
     end
     rc = ccall((:zmq_msg_send, zmq), Cint, (Ptr{Void}, Ptr{Message}, Cint),
                 &zmsg, socket.data, flag)
@@ -444,7 +444,7 @@ function send(socket::Socket, zmsg::Message, flag=int32(0))
 end
 function send{T}(socket::Socket, msg::Ptr{T}, len, flag=int32(0))
     if (get_events(socket) & POLLOUT) == 0
-        wait(socket; writeable = true)
+        wait(socket; writable = true)
     end
     rc = ccall((:zmq_send, zmq), Cint, 
             (Ptr{Void}, Ptr{T}, Csize_t, Cint), 
