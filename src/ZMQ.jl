@@ -352,9 +352,8 @@ end
 
 # AbstractArray behaviors:
 similar(a::Message, T, dims::Dims) = Array(T, dims) # ?
-length(zmsg::Message) = ccall((:zmq_msg_size, zmq), Csize_t, (Ptr{Message},) , &zmsg)
+length(zmsg::Message) = int(ccall((:zmq_msg_size, zmq), Csize_t, (Ptr{Message},), &zmsg))
 size(zmsg::Message) = (length(zmsg),)
-stride(zmsg::Message, i::Integer) = i <= 1 ? 1 : length(zmsg)
 convert(::Type{Ptr{Uint8}}, zmsg::Message) = ccall((:zmq_msg_data, zmq), Ptr{Uint8}, (Ptr{Message},), &zmsg)
 function getindex(a::Message, i::Integer)
     if i < 1 || i > length(a)
