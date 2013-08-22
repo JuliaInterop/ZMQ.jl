@@ -1,5 +1,5 @@
 # A Julia interface to ZeroMQ
-[![Build Status](https://travis-ci.org/aviks/ZMQ.jl.png)](https://travis-ci.org/aviks/ZMQ.jl)
+[![Build Status](https://api.travis-ci.org/JuliaLang/ZMQ.jl.png)](https://travis-ci.org/JuliaLang/ZMQ.jl)
 
 **ZMQ.jl** is a [Julia] (http://julialang.org) interface to [ZeroMQ, The Intelligent Transport Layer] (http://zeromq.org). 
 
