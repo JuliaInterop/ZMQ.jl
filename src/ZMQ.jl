@@ -233,7 +233,7 @@ ismore(socket::Socket) = get_rcvmore(socket)
 
 # Raw FD access
 @unix_only fd(socket::Socket) = RawFD(get_fd(socket))
-@windows_only fd(socket::Socket) = WindowsRawSocket(get_fd(socket))
+@windows_only fd(socket::Socket) = WindowsRawSocket(convert(Ptr{Void}, get_fd(socket)))
 wait(socket::Socket; readable=false, writable=false) = wait(fd(socket); readable=readable, writable=writable)
 
 
