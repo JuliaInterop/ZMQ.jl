@@ -328,8 +328,6 @@ type Message <: AbstractArray{Uint8,1}
         finalizer(zmsg, close)
         return zmsg
     end
-    # Create a message with a given String or Array as a buffer (for send)
-    Message(m::ByteString) = Message(m, convert(Ptr{Uint8}, m), sizeof(m))
     function Message{T}(origin, m::Ptr{T}, len::Integer)
         zmsg = new()
         zmsg.bufferorigin = origin # should be origin of data pointed to by m
@@ -340,8 +338,6 @@ type Message <: AbstractArray{Uint8,1}
         finalizer(zmsg, close)
         return zmsg
     end
-    Message(m::ByteString) = Message(m, convert(Ptr{Uint8}, m), sizeof(m))
-    Message{T}(m::Array{T}) = Message(m, convert(Ptr{T}, m),  sizeof(m))
     function Message(io::IOBuffer)
         if !io.readable || !io.seekable
             error("byte read failed")
@@ -349,6 +345,10 @@ type Message <: AbstractArray{Uint8,1}
         Message(io, convert(Ptr{Uint8}, io.data), io.size)
     end
 end
+
+# Create a message with a given String or Array as a buffer (for send)
+Message(m::ByteString) = Message(m, convert(Ptr{Uint8}, m), sizeof(m))
+Message{T}(m::Array{T}) = Message(m, convert(Ptr{T}, m),  sizeof(m))
 
 # AbstractArray behaviors:
 similar(a::Message, T, dims::Dims) = Array(T, dims) # ?
