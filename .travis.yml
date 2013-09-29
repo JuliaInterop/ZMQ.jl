@@ -15,5 +15,5 @@ script:
     - julia -e "Pkg.init()"
     - mkdir -p ~/.julia/ZMQ
     - cp -R ./* ~/.julia/ZMQ/
-    - julia -e "Pkg2.update(); Pkg2.fixup()"
+    - julia -e "Pkg.update(); Pkg.fixup()"
     - julia ~/.julia/ZMQ/test/ZMQ.jl
