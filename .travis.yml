@@ -7,10 +7,7 @@ before_install:
     - sudo add-apt-repository ppa:staticfloat/julia-deps -y
     - sudo add-apt-repository ppa:staticfloat/julianightlies -y
     - sudo apt-get update -qq -y
-    - sudo apt-get upgrade -qq -y
-    - sudo apt-get install julia
-    - git config --global user.name "Travis User"
-    - git config --global user.email "travis@example.net"
+    - sudo apt-get install libpcre3-dev julia -y
 script:
     - julia -e "Pkg.init()"
     - mkdir -p ~/.julia/ZMQ
