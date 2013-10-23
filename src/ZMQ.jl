@@ -2,8 +2,7 @@
 
 module ZMQ
 
-using BinDeps
-@BinDeps.load_dependencies
+include("../deps/deps.jl")
 
 import Base: convert, ref, get, bytestring, length, size, stride, similar, getindex, setindex!, fd, wait
 

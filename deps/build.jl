@@ -18,4 +18,4 @@ end
     provides( Homebrew.HB, "zeromq", zmq, os = :Darwin )
 end
 
-@BinDeps.install
+@BinDeps.install [:zmq => :zmq]
