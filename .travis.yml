@@ -12,10 +12,9 @@ before_install:
     - sudo add-apt-repository ppa:staticfloat/${JULIAVERSION} -y
     - sudo apt-get update -qq -y
     - sudo apt-get install libpcre3-dev julia -y
-    - git config --global user.name "Travis User"
-    - git config --global user.email "travis@example.net"
-    - if [[ -a .git/shallow ]]; then git fetch --unshallow; fi
 script:
-    - julia -e 'versioninfo(); Pkg.init(); Pkg.clone("ZMQ");'
+    - julia -e 'Pkg.init(); run(`ln -s $(pwd()) $(Pkg.dir())/ZMQ`); Pkg.resolve()'
+    - julia -e 'versioninfo(); Pkg.build("ZMQ");'
     - julia -e 'using ZMQ; @assert isdefined(:ZMQ); @assert typeof(ZMQ) === Module'
     - julia test/ZMQ.jl
+    - julia ~/.julia/ZMQ/test/ZMQ.jl
