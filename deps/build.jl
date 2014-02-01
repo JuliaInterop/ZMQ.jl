@@ -15,7 +15,7 @@ end
     if Pkg.installed("Homebrew") === nothing
         error("Homebrew package not installed, please run Pkg.add(\"Homebrew\")")  end
     using Homebrew
-    provides( Homebrew.HB, "zeromq", zmq, os = :Darwin )
+    provides( Homebrew.HB, "zeromq32", zmq, os = :Darwin )
 end
 
 @BinDeps.install [:zmq => :zmq]
