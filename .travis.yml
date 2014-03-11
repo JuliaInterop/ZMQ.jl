@@ -16,4 +16,4 @@ script:
     - julia -e 'Pkg.init(); run(`ln -s $(pwd()) $(Pkg.dir())/ZMQ`); Pkg.resolve()'
     - julia -e 'versioninfo(); Pkg.build("ZMQ");'
     - julia -e 'using ZMQ; @assert isdefined(:ZMQ); @assert typeof(ZMQ) === Module'
-    - julia test/ZMQ.jl
+    - julia test/test.jl
