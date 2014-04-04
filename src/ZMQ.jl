@@ -4,13 +4,13 @@ module ZMQ
 
 include("../deps/deps.jl")
 
-import Base: convert, ref, get, bytestring, length, size, stride, similar, getindex, setindex!, fd, wait
+import Base: convert, ref, get, bytestring, length, size, stride, similar, getindex, setindex!, fd, wait, close, bind, connect, send, recv
 
 export 
     #Types
     StateError,Context,Socket,Message,
     #functions
-    close, get, set, bind, connect,send,recv,convert, ref, 
+    set, subscribe, unsubscribe,
     #Constants
     IO_THREADS,MAX_SOCKETS,PAIR,PUB,SUB,REQ,REP,ROUTER,DEALER,PULL,PUSH,XPUB,XPUB,XREQ,XREP,UPSTREAM,DOWNSTREAM,MORE,MORE,SNDMORE,POLLIN,POLLOUT,POLLERR,STREAMER,FORWARDER,QUEUE
 
@@ -229,6 +229,23 @@ get_rcvmore(socket::Socket) = bool(_zmq_getsockopt_rcvmore(socket))
 # And a convenience function
 ismore(socket::Socket) = get_rcvmore(socket)
 
+# subscribe/unsubscribe options take an arbitrary byte array
+for (f,k) in ((:subscribe,6), (:unsubscribe,7))
+    f_ = symbol(string(f, "_"))
+    @eval begin
+        function $f_{T}(socket::Socket, filter::Ptr{T}, len::Integer)
+            rc = ccall((:zmq_setsockopt, zmq), Cint,
+                       (Ptr{Void}, Cint, Ptr{T}, Uint),
+                       socket.data, $k, filter, len)
+            if rc != 0
+                throw(StateError(jl_zmq_error_str()))
+            end
+        end
+        $f(socket::Socket, filter::Union(Array,String)) =
+            $f_(socket, pointer(filter), sizeof(filter))
+        $f(socket::Socket) = $f_(socket, C_NULL, 0)
+    end
+end
 
 # Raw FD access
 @unix_only fd(socket::Socket) = RawFD(get_fd(socket))
