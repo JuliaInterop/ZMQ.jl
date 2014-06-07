@@ -332,7 +332,9 @@ end
 # collected.  The gc_protect dictionary is keyed by a uv_async_t* pointer,
 # used in uv_async_send to tell Julia to when zeromq is done with the data.
 const gc_protect = Dict{Ptr{Void},Any}()
-gc_protect_cb(work, status) = pop!(gc_protect, work.handle, nothing)
+# 0.2 compatibility
+gc_protect_cb(work, status) = gc_protect_cb(work)
+gc_protect_cb(work) = pop!(gc_protect, work.handle, nothing)
 function gc_protect_handle(obj::Any)
     work = Base.SingleAsyncWork(gc_protect_cb)
     gc_protect[work.handle] = (work,obj)
