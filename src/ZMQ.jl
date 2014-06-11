@@ -502,6 +502,13 @@ function send(socket::Socket, zmsg::Message, flag=int32(0))
         throw(StateError(jl_zmq_error_str()))
     end
 end
+
+function send_multipart(socket::Socket, parts::Array{Message})
+    for msg in parts[1:end-1]
+        send(socket, msg, SNDMORE)
+    end
+    return send(socket, parts[end])
+end
 end # end v3only
 
 # strings are immutable, so we can send them zero-copy by default
@@ -557,6 +564,15 @@ function recv(socket::Socket)
         break
     end
     return zmsg
+end
+
+function recv_multipart(socket::Socket)
+    parts = Any[recv(socket)]
+    while ismore(socket)
+        push!(parts, recv(socket))
+    end
+
+    return parts
 end
 end # end v3only
 
