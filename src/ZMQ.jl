@@ -4,7 +4,7 @@ module ZMQ
 
 include("../deps/deps.jl")
 
-import Base: convert, ref, get, bytestring, length, size, stride, similar, getindex, setindex!, fd, wait, close, connect
+import Base: convert, get, bytestring, length, size, stride, similar, getindex, setindex!, fd, wait, close, connect
 
 # Julia 0.2 does not define these (avoid warning for import)
 if isdefined(:bind)
