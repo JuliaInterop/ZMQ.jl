@@ -150,20 +150,20 @@ end # end v3only
 # Socket options of integer type
 let u64p = zeros(Uint64, 1), i64p = zeros(Int64, 1), ip = zeros(Cint, 1), u32p = zeros(Uint32, 1), sz = zeros(Uint, 1), 
     pp = zeros(Ptr{Void},1)
-opslist = {
+opslist = [
     (:set_affinity,                :get_affinity,                 4, u64p)
     (:set_type,                    :get_type,                    16,   ip)
     (:set_linger,                  :get_linger,                  17,   ip)
     (:set_reconnect_ivl,           :get_reconnect_ivl,           18,   ip)
     (:set_backlog,                 :get_backlog,                 19,   ip)
     (:set_reconnect_ivl_max,       :get_reconnect_ivl_max,       21,   ip)
-  }
+  ]
 
 @unix_only opslist = vcat(opslist, (nothing,     :get_fd,        14,   ip))
 @windows_only opslist = vcat(opslist, (nothing,  :get_fd,        14,   pp))
 
 if version.major == 2
-    opslist = vcat(opslist, {
+    opslist = vcat(opslist, [
     (:set_hwm,                     :get_hwm,                      1, u64p)
     (:set_swap,                    :get_swap,                     3, i64p)
     (:set_rate,                    :get_rate,                     8, i64p)
@@ -174,9 +174,9 @@ if version.major == 2
     (nothing,                      :_zmq_getsockopt_rcvmore,     13, i64p)
     (nothing,                      :get_events,                  15, u32p)
     (:set_recovery_ivl_msec,       :get_recovery_ivl_msec,       20, i64p)
-    })
+    ])
 else
-    opslist = vcat(opslist, {
+    opslist = vcat(opslist, [
     (:set_rate,                    :get_rate,                     8,   ip)
     (:set_recovery_ivl,            :get_recovery_ivl,             9,   ip)
     (:set_sndbuf,                  :get_sndbuf,                  11,   ip)
@@ -192,13 +192,13 @@ else
     (:set_tcp_keepalive_idle,      :get_tcp_keepalive_idle,      35,   ip)
     (:set_tcp_keepalive_cnt,       :get_tcp_keepalive_cnt,       36,   ip)
     (:set_tcp_keepalive_intvl,     :get_tcp_keepalive_intvl,     37,   ip)
-    })
+    ])
 end
 if version > v"2.1"
-    opslist = vcat(opslist, {
+    opslist = vcat(opslist, [
     (:set_rcvtimeo,                :get_rcvtimeo,                27,   ip)
     (:set_sndtimeo,                :get_sndtimeo,                28,   ip)
-    })
+    ])
 end
     
 for (fset, fget, k, p) in opslist
@@ -268,16 +268,16 @@ wait(socket::Socket; readable=false, writable=false) = wait(fd(socket); readable
 
 # Socket options of string type
 let u8ap = zeros(Uint8, 255), sz = zeros(Uint, 1)
-opslist = {
+opslist = [
     (:set_identity,                :get_identity,                5)
     (:set_subscribe,               nothing,                      6)
     (:set_unsubscribe,             nothing,                      7)
-    }
+    ]
 if version.major >= 3
-    opslist = vcat(opslist, {
+    opslist = vcat(opslist, [
     (nothing,                      :get_last_endpoint,          32)
     (:set_tcp_accept_filter,       nothing,                     38)
-    })
+    ])
 end
 for (fset, fget, k) in opslist
     if fset != nothing
