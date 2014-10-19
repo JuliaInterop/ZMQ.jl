@@ -12,8 +12,8 @@ before_install:
     - sudo add-apt-repository ppa:staticfloat/${JULIAVERSION} -y
     - sudo apt-get update -qq -y
     - sudo apt-get install libpcre3-dev julia -y
+    - if [[ -a .git/shallow ]]; then git fetch --unshallow; fi
 script:
-    - julia -e 'Pkg.init(); run(`ln -s $(pwd()) $(Pkg.dir())/ZMQ`); Pkg.resolve()'
-    - julia -e 'versioninfo(); Pkg.build("ZMQ");'
+    - julia -e 'versioninfo(); Pkg.init(); Pkg.clone(pwd()); Pkg.build("ZMQ")'
     - julia -e 'using ZMQ; @assert isdefined(:ZMQ); @assert typeof(ZMQ) === Module'
     - julia test/runtests.jl
