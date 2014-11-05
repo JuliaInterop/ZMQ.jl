@@ -1,5 +1,5 @@
 require("ZMQ")
-using ZMQ
+using ZMQ, Compat
 
 println("Testing with ZMQ version $(ZMQ.version)")
 
@@ -41,7 +41,7 @@ ZMQ.set_linger(s1, 1)
 ZMQ.set_identity(s1, "abcd")
 
 
-@assert ZMQ.get_identity(s1)::String == "abcd"
+@assert ZMQ.get_identity(s1)::AbstractString == "abcd"
 if ZMQ.version.major == 2
 	@assert ZMQ.get_hwm(s1)::Integer == 1000
 else

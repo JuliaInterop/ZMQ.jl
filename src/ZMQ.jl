@@ -1,6 +1,7 @@
 # Support for ZeroMQ, a network and interprocess communication library
 
 module ZMQ
+using Compat
 
 include("../deps/deps.jl")
 
@@ -32,7 +33,7 @@ export
 # corrupted. Therefore, we need an exception type for errors that
 # should be reported locally.
 type StateError <: Exception
-    msg::String
+    msg::AbstractString
 end
 show(io, thiserr::StateError) = print(io, "ZMQ: ", thiserr.msg)
 
@@ -254,7 +255,7 @@ for (f,k) in ((:subscribe,6), (:unsubscribe,7))
                 throw(StateError(jl_zmq_error_str()))
             end
         end
-        $f(socket::Socket, filter::Union(Array,String)) =
+        $f(socket::Socket, filter::Union(Array,AbstractString)) =
             $f_(socket, pointer(filter), sizeof(filter))
         $f(socket::Socket) = $f_(socket, C_NULL, 0)
     end
@@ -312,14 +313,14 @@ end  # let
     
 
 
-function bind(socket::Socket, endpoint::String)
+function bind(socket::Socket, endpoint::AbstractString)
     rc = ccall((:zmq_bind, zmq), Cint, (Ptr{Void}, Ptr{Uint8}), socket.data, endpoint)
     if rc != 0
         throw(StateError(jl_zmq_error_str()))
     end
 end
 
-function connect(socket::Socket, endpoint::String)
+function connect(socket::Socket, endpoint::AbstractString)
     rc=ccall((:zmq_connect, zmq), Cint, (Ptr{Void}, Ptr{Uint8}), socket.data, endpoint)
     if rc != 0
         throw(StateError(jl_zmq_error_str()))
@@ -396,7 +397,7 @@ type Message <: AbstractArray{Uint8,1}
         return zmsg
     end
 
-    # Create a message with a given String or Array as a buffer (for send)
+    # Create a message with a given AbstractString or Array as a buffer (for send)
     # (note: now "owns" the buffer ... the Array must not be resized,
     #        or even written to after the message is sent!)
     Message(m::ByteString) = Message(m, convert(Ptr{Uint8}, m), sizeof(m))
@@ -505,7 +506,7 @@ end
 end # end v3only
 
 # strings are immutable, so we can send them zero-copy by default
-send(socket::Socket, msg::String, flag=int32(0)) = send(socket, Message(msg), flag)
+send(socket::Socket, msg::AbstractString, flag=int32(0)) = send(socket, Message(msg), flag)
 
 # Make a copy of arrays before sending, by default, since it is too
 # dangerous to require that the array not change until ZMQ is done with it.
