@@ -150,7 +150,7 @@ end # end v3only
 # Getting and setting socket options
 # Socket options of integer type
 let u64p = zeros(Uint64, 1), i64p = zeros(Int64, 1), ip = zeros(Cint, 1), u32p = zeros(Uint32, 1), sz = zeros(Uint, 1), 
-    pp = zeros(Ptr{Void},1)
+    pp = fill(C_NULL, 1)
 opslist = [
     (:set_affinity,                :get_affinity,                 4, u64p)
     (:set_type,                    :get_type,                    16,   ip)
