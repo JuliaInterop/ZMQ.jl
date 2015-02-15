@@ -3,7 +3,11 @@
 module ZMQ
 using Compat
 
-include("../deps/deps.jl")
+if isfile(joinpath(Pkg.dir("ZMQ"),"deps","deps.jl"))
+    include("../deps/deps.jl")
+else
+    error("ZMQ not properly installed. Please run Pkg.build(\"ZMQ\")")
+end
 
 import Base: convert, get, bytestring, length, size, stride, similar, getindex, setindex!, fd, wait, close, connect
 
