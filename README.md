@@ -38,3 +38,7 @@ ZMQ.close(s2)
 ZMQ.close(ctx)
 
 ```
+
+## Troubleshooting
+
+If you are using Windows and get an error `Provider PackageManager failed to satisfy dependency zmq`, you may need to restart Julia and run `Pkg.build("ZMQ")` again. See [issue #69](https://github.com/JuliaLang/ZMQ.jl/issues/69) for more details.
