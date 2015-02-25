@@ -3,7 +3,7 @@
 module ZMQ
 using Compat
 
-if isfile(joinpath(Pkg.dir("ZMQ"),"deps","deps.jl"))
+if isfile(joinpath(dirname(@__FILE__),"..","deps","deps.jl"))
     include("../deps/deps.jl")
 else
     error("ZMQ not properly installed. Please run Pkg.build(\"ZMQ\")")
