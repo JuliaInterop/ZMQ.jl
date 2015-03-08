@@ -404,7 +404,7 @@ type Message <: AbstractArray{Uint8,1}
     # Create a message with a given AbstractString or Array as a buffer (for send)
     # (note: now "owns" the buffer ... the Array must not be resized,
     #        or even written to after the message is sent!)
-    Message(m::ByteString) = Message(m, convert(Ptr{Uint8}, m), sizeof(m))
+    Message(m::ByteString) = Message(m, Base.unsafe_convert(Ptr{Uint8}, pointer(m.data)), sizeof(m))
     Message{T<:ByteString}(p::SubString{T}) = 
         Message(p, pointer(p.string.data)+p.offset, sizeof(p))
     Message(a::Array) = Message(a, pointer(a), sizeof(a))
@@ -501,8 +501,8 @@ function send(socket::Socket, zmsg::Message, flag=int32(0))
     if (get_events(socket) & POLLOUT) == 0
         wait(socket; writable = true)
     end
-    rc = ccall((:zmq_msg_send, zmq), Cint, (Ptr{Void}, Ptr{Message}, Cint),
-                &zmsg, socket.data, flag)
+    rc = ccall((:zmq_msg_send, zmq), Cint, (Ref{Message}, Ptr{Message}, Cint),
+                zmsg, socket.data, flag)
     if rc == -1
         throw(StateError(jl_zmq_error_str()))
     end
