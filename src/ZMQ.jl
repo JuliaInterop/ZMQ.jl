@@ -501,6 +501,10 @@ end
 end # end v2only
 
 @v3only begin
+if VERSION <= v"0.4.0-dev+3703"
+    immutable Ref{T} end
+end    
+
 function send(socket::Socket, zmsg::Message, flag=int32(0))
     if (get_events(socket) & POLLOUT) == 0
         wait(socket; writable = true)
