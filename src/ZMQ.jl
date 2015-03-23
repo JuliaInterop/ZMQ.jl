@@ -349,7 +349,16 @@ end
 const gc_protect = Dict{Ptr{Void},Any}()
 # 0.2 compatibility
 gc_protect_cb(work, status) = gc_protect_cb(work)
-gc_protect_cb(work) = pop!(gc_protect, work.handle, nothing)
+if VERSION < v"0.4.0-dev+3970"
+    function close_handle(work)
+        Base.disassociate_julia_struct(work.handle)
+        ccall(:jl_close_uv,Void,(Ptr{Void},),work.handle)
+        Base.unpreserve_handle(work)
+    end
+else
+    close_handle(work) = Base.close(work)
+end
+gc_protect_cb(work) = (pop!(gc_protect, work.handle, nothing); close_handle(work))
 function gc_protect_handle(obj::Any)
     work = Base.SingleAsyncWork(gc_protect_cb)
     gc_protect[work.handle] = (work,obj)
