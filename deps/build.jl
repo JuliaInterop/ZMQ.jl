@@ -1,4 +1,5 @@
 using BinDeps
+using Compat
 
 @BinDeps.setup
 
@@ -19,4 +20,4 @@ end
     provides( Homebrew.HB, "zeromq32", zmq, os = :Darwin )
 end
 
-@BinDeps.install [:zmq => :zmq]
+@BinDeps.install @compat Dict(:zmq => :zmq)
