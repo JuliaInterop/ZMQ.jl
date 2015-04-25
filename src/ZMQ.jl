@@ -562,7 +562,7 @@ function recv(socket::Socket)
         rc = ccall((:zmq_recv, zmq), Cint, (Ptr{Void}, Ptr{Message},  Cint),
                     socket.data, &zmsg, NOBLOCK)
         if rc != 0
-            if errno() == EAGAIN
+            if Libc.errno() == EAGAIN
                 while (get_events(socket) & POLLIN) == 0
                     wait(socket; readable = true)
                 end
@@ -583,7 +583,7 @@ function recv(socket::Socket)
         rc = ccall((:zmq_msg_recv, zmq), Cint, (Ptr{Message}, Ptr{Void}, Cint),
                     &zmsg, socket.data, NOBLOCK)
         if rc == -1
-            if errno() == EAGAIN
+            if Libc.errno() == EAGAIN
                 while (get_events(socket) & POLLIN) == 0
                     wait(socket; readable = true)
                 end
