@@ -374,13 +374,11 @@ end
 const gc_free_fn_c = cfunction(gc_free_fn, Cint, (Ptr{Void}, Ptr{Void}))
 
 ## Messages ##
+bitstype 64 * 8 MsgPadding
+
 type Message <: AbstractArray{UInt8,1}
-    # 32 bytes (for v3) + a pointer (for v2)
-    w0::Int64
-    w1::Int64
-    w2::Int64
-    w3::Int64
-    w4::Int
+    # Matching the declaration in the header: char _[64];
+    w_padding::MsgPadding
     handle::Ptr{Void} # index into gc_protect, if any
 
     # Create an empty message (for receive)
