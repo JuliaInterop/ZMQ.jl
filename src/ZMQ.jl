@@ -76,9 +76,6 @@ end
 macro v3only(ex)
     version.major >= 3 ? esc(ex) : :nothing
 end
-macro v3only(ex)
-    version.major >= 3 ? esc(ex) : :nothing
-end
 
 if VERSION >= v"0.4-" && isdefined(Base,:_FDWatcher)
     @windows_only using Base.Libc: WindowsRawSocket
