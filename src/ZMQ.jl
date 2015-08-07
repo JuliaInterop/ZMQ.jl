@@ -14,8 +14,9 @@ else
     using Base: EAGAIN
 end
 
-if isfile(joinpath(dirname(@__FILE__),"..","deps","deps.jl"))
-    include("../deps/deps.jl")
+const depfile = joinpath(dirname(@__FILE__),"..","deps","deps.jl")
+if isfile(depfile)
+    include(depfile)
 else
     error("ZMQ not properly installed. Please run Pkg.build(\"ZMQ\")")
 end
