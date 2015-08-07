@@ -27,20 +27,11 @@ else
     error("ZMQ not properly installed. Please run Pkg.build(\"ZMQ\")")
 end
 
-import Base: convert, get, bytestring, length, size, stride, similar, getindex, setindex!, fd, wait, close, connect
-
-# Julia 0.2 does not define these (avoid warning for import)
-if isdefined(:bind)
-    import Base.bind
-end
-if isdefined(:send)
-    import Base.send
-end
-if isdefined(:recv)
-    import Base.recv
-end
-
-export bind, send, recv
+import Base:
+    convert, get, bytestring,
+    length, size, stride, similar, getindex, setindex!,
+    fd, wait, notify, close, connect,
+    bind, send, recv
 
 export 
     #Types
@@ -85,12 +76,24 @@ end
 macro v3only(ex)
     version.major >= 3 ? esc(ex) : :nothing
 end
+macro v3only(ex)
+    version.major >= 3 ? esc(ex) : :nothing
+end
 
+if VERSION >= v"0.4-" && isdefined(Base,:_FDWatcher)
+    @windows_only using Base.Libc: WindowsRawSocket
+    const _FDWatcher = Base._FDWatcher
+    const _have_good_fdwatcher = true
+else
+    @windows_only using Base: WindowsRawSocket
+    const _FDWatcher = Base.FDWatcher
+    const _have_good_fdwatcher = false
+end
 
 ## Sockets ##
 type Socket
     data::Ptr{Void}
-    pollfd::Base._FDWatcher
+    pollfd::_FDWatcher
 
     # ctx should be ::Context, but forward type references are not allowed
     function Socket(ctx, typ::Integer)
@@ -99,7 +102,11 @@ type Socket
             throw(StateError(jl_zmq_error_str()))
         end
         socket = new(p)
-        socket.pollfd = Base._FDWatcher(fd(socket), #=readable=#true, #=writable=#false)
+        if _have_good_fdwatcher
+            socket.pollfd = _FDWatcher(fd(socket), #=readable=#true, #=writable=#false)
+        else
+            socket.pollfd = _FDWatcher(fd(socket))
+        end
         finalizer(socket, close)
         push!(ctx.sockets, socket)
         return socket
@@ -110,7 +117,12 @@ function close(socket::Socket)
     if socket.data != C_NULL
         data = socket.data
         socket.data = C_NULL
-        close(socket.pollfd, #=readable=#true, #=writable=#false)
+        if _have_good_fdwatcher
+            close(socket.pollfd, #=readable=#true, #=writable=#false)
+        else
+            notify(socket.pollfd.notify)
+            Base.stop_watching(socket.pollfd)
+        end
         rc = ccall((:zmq_close, zmq), Cint,  (Ptr{Void},), data)
         if rc != 0
             throw(StateError(jl_zmq_error_str()))
@@ -293,8 +305,13 @@ end
 # Raw FD access
 @unix_only fd(socket::Socket) = RawFD(get_fd(socket))
 @windows_only fd(socket::Socket) = WindowsRawSocket(convert(Ptr{Void}, get_fd(socket)))
-wait(socket::Socket) = wait(socket.pollfd, readable=true, writable=false)
-notify(socket::Socket) = Base.uv_pollcb(socket.pollfd.handle, @compat(Int32(0)), @compat(Int32(Base.UV_READABLE)))
+if _have_good_fdwatcher
+    wait(socket::Socket) = wait(socket.pollfd, readable=true, writable=false)
+    notify(socket::Socket) = Base.uv_pollcb(socket.pollfd.handle, Int32(0), Int32(Base.UV_READABLE))
+else
+    wait(socket::Socket) = Base._wait(socket.pollfd, #=readable=#true, #=writable=#false)
+    notify(socket::Socket) = Base._uv_hook_pollcb(socket.pollfd, int32(0), int32(Base.UV_READABLE))
+end
 
 # Socket options of string type
 let u8ap = zeros(UInt8, 255), sz = zeros(UInt, 1)
