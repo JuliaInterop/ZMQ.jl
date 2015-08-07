@@ -545,7 +545,7 @@ function send(socket::Socket, zmsg::Message, SNDMORE::Bool=false)
                 wait(socket)
             end
         else
-            notify(socket)
+            get_events(socket) != 0 && notify(socket)
             break
         end
     end
@@ -563,7 +563,7 @@ function send(socket::Socket, zmsg::Message, SNDMORE::Bool=false)
                 wait(socket)
             end
         else
-            notify(socket)
+            get_events(socket) != 0 && notify(socket)
             break
         end
     end
@@ -596,7 +596,7 @@ function recv(socket::Socket)
                 wait(socket)
             end
         else
-            notify(socket)
+            get_events(socket) != 0 && notify(socket)
             break
         end
     end
@@ -617,7 +617,7 @@ function recv(socket::Socket)
                 wait(socket)
             end
         else
-            notify(socket)
+            get_events(socket) != 0 && notify(socket)
             break
         end
     end
