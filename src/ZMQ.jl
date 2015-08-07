@@ -1,5 +1,10 @@
 # Support for ZeroMQ, a network and interprocess communication library
 
+# Currently, this module cannot be compiled because its initialization
+# depends on runtime detection of the libzmq version.  TODO: either
+# move this detection to Pkg.build or drop support for libzmq v2.
+VERSION >= v"0.4.0-dev+6521" && __precompile__(false)
+
 module ZMQ
 using Compat
 if VERSION >= v"0.4.0-dev+3710"
