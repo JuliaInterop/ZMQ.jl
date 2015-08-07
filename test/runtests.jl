@@ -1,4 +1,3 @@
-require("ZMQ")
 using ZMQ, Compat
 
 println("Testing with ZMQ version $(ZMQ.version)")
