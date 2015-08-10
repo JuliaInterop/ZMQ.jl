@@ -15,6 +15,7 @@ end
 if VERSION >= v"0.4.0-dev+3844"
     using Base.Libdl, Base.Libc
     using Base.Libdl: dlopen_e
+    using Base.Libc: EAGAIN
 else
     using Base: EAGAIN
 end
@@ -26,20 +27,11 @@ else
     error("ZMQ not properly installed. Please run Pkg.build(\"ZMQ\")")
 end
 
-import Base: convert, get, bytestring, length, size, stride, similar, getindex, setindex!, fd, wait, close, connect
-
-# Julia 0.2 does not define these (avoid warning for import)
-if isdefined(:bind)
-    import Base.bind
-end
-if isdefined(:send)
-    import Base.send
-end
-if isdefined(:recv)
-    import Base.recv
-end
-
-export bind, send, recv
+import Base:
+    convert, get, bytestring,
+    length, size, stride, similar, getindex, setindex!,
+    fd, wait, notify, close, connect,
+    bind, send, recv
 
 export 
     #Types
@@ -47,7 +39,8 @@ export
     #functions
     set, subscribe, unsubscribe,
     #Constants
-    IO_THREADS,MAX_SOCKETS,PAIR,PUB,SUB,REQ,REP,ROUTER,DEALER,PULL,PUSH,XPUB,XSUB,XREQ,XREP,UPSTREAM,DOWNSTREAM,MORE,NOBLOCK,DONTWAIT,SNDMORE,POLLIN,POLLOUT,POLLERR,STREAMER,FORWARDER,QUEUE
+    IO_THREADS,MAX_SOCKETS,PAIR,PUB,SUB,REQ,REP,ROUTER,DEALER,PULL,PUSH,XPUB,XSUB,XREQ,XREP,UPSTREAM,DOWNSTREAM,MORE,POLLIN,POLLOUT,POLLERR,STREAMER,FORWARDER,QUEUE,SNDMORE
+const SNDMORE = true
 
 # A server will report most errors to the client over a Socket, but
 # errors in ZMQ state can't be reported because the socket may be
@@ -59,8 +52,9 @@ end
 show(io, thiserr::StateError) = print(io, "ZMQ: ", thiserr.msg)
 
 # Basic functions
+zmq_errno() = ccall((:zmq_errno, zmq), Cint, ())
 function jl_zmq_error_str()
-    errno = ccall((:zmq_errno, zmq), Cint, ())
+    errno = zmq_errno()
     c_strerror = ccall ((:zmq_strerror, zmq), Ptr{UInt8}, (Cint,), errno)
     if c_strerror != C_NULL
         strerror = bytestring(c_strerror)
@@ -83,10 +77,20 @@ macro v3only(ex)
     version.major >= 3 ? esc(ex) : :nothing
 end
 
+if VERSION >= v"0.4-" && isdefined(Base,:_FDWatcher)
+    @windows_only using Base.Libc: WindowsRawSocket
+    const _FDWatcher = Base._FDWatcher
+    const _have_good_fdwatcher = true
+else
+    @windows_only using Base: WindowsRawSocket
+    const _FDWatcher = Base.FDWatcher
+    const _have_good_fdwatcher = false
+end
 
 ## Sockets ##
 type Socket
     data::Ptr{Void}
+    pollfd::_FDWatcher
 
     # ctx should be ::Context, but forward type references are not allowed
     function Socket(ctx, typ::Integer)
@@ -95,6 +99,11 @@ type Socket
             throw(StateError(jl_zmq_error_str()))
         end
         socket = new(p)
+        if _have_good_fdwatcher
+            socket.pollfd = _FDWatcher(fd(socket), #=readable=#true, #=writable=#false)
+        else
+            socket.pollfd = _FDWatcher(fd(socket))
+        end
         finalizer(socket, close)
         push!(ctx.sockets, socket)
         return socket
@@ -103,11 +112,18 @@ end
 
 function close(socket::Socket)
     if socket.data != C_NULL
-        rc = ccall((:zmq_close, zmq), Cint,  (Ptr{Void},), socket.data)
+        data = socket.data
+        socket.data = C_NULL
+        if _have_good_fdwatcher
+            close(socket.pollfd, #=readable=#true, #=writable=#false)
+        else
+            notify(socket.pollfd.notify)
+            Base.stop_watching(socket.pollfd)
+        end
+        rc = ccall((:zmq_close, zmq), Cint,  (Ptr{Void},), data)
         if rc != 0
             throw(StateError(jl_zmq_error_str()))
         end
-        socket.data = C_NULL
     end
 end
 
@@ -137,15 +153,16 @@ Context() = Context(1)
 
 function close(ctx::Context)
     if ctx.data != C_NULL # don't close twice!
+        data = ctx.data
+        ctx.data = C_NULL
         for s in ctx.sockets
             close(s)
         end
-        @v2only rc = ccall((:zmq_term, zmq), Cint,  (Ptr{Void},), ctx.data)
-        @v3only rc = ccall((:zmq_ctx_destroy, zmq), Cint,  (Ptr{Void},), ctx.data)
+        @v2only rc = ccall((:zmq_term, zmq), Cint,  (Ptr{Void},), data)
+        @v3only rc = ccall((:zmq_ctx_destroy, zmq), Cint,  (Ptr{Void},), data)
         if rc != 0
             throw(StateError(jl_zmq_error_str()))
         end
-        ctx.data = C_NULL
     end
 end
 term(ctx::Context) = close(ctx)
@@ -285,8 +302,13 @@ end
 # Raw FD access
 @unix_only fd(socket::Socket) = RawFD(get_fd(socket))
 @windows_only fd(socket::Socket) = WindowsRawSocket(convert(Ptr{Void}, get_fd(socket)))
-wait(socket::Socket; readable=false, writable=false) = wait(fd(socket); readable=readable, writable=writable)
-
+if _have_good_fdwatcher
+    wait(socket::Socket) = wait(socket.pollfd, readable=true, writable=false)
+    notify(socket::Socket) = Base.uv_pollcb(socket.pollfd.handle, Int32(0), Int32(Base.UV_READABLE))
+else
+    wait(socket::Socket) = Base._wait(socket.pollfd, #=readable=#true, #=writable=#false)
+    notify(socket::Socket) = Base._uv_hook_pollcb(socket.pollfd, int32(0), int32(Base.UV_READABLE))
+end
 
 # Socket options of string type
 let u8ap = zeros(UInt8, 255), sz = zeros(UInt, 1)
@@ -428,11 +450,7 @@ type Message <: AbstractArray{UInt8,1}
     # Create a message with a given AbstractString or Array as a buffer (for send)
     # (note: now "owns" the buffer ... the Array must not be resized,
     #        or even written to after the message is sent!)
-    if VERSION <= v"0.4.0-dev+3703"
-        Message(m::ByteString) = Message(m, convert(Ptr{UInt8}, m), sizeof(m))
-    else
-        Message(m::ByteString) = Message(m, Base.unsafe_convert(Ptr{UInt8}, pointer(m)), sizeof(m))
-    end    
+    Message(m::ByteString) = Message(m, unsafe_convert(Ptr{UInt8}, pointer(m)), sizeof(m))
     Message{T<:ByteString}(p::SubString{T}) = 
         Message(p, pointer(p.string.data)+p.offset, sizeof(p))
     Message(a::Array) = Message(a, pointer(a), sizeof(a))
@@ -510,54 +528,57 @@ end # end v3only
 #   zmsg = recv(socket)
 
 #Send/Recv Options
-const NOBLOCK = 1 # deprecated old name for DONTWAIT in ZMQ v2
-const DONTWAIT = 1
-const SNDMORE = 2
+const ZMQ_DONTWAIT = 1
+const ZMQ_SNDMORE = 2
 
 @v2only begin
-function send(socket::Socket, zmsg::Message, flag=@compat(Int32(0)))
-    rc = ccall((:zmq_send, zmq), Cint, (Ptr{Void}, Ptr{Message}, Cint),
-               socket.data, &zmsg, flag)
-    if rc != 0
-        throw(StateError(jl_zmq_error_str()))
+function send(socket::Socket, zmsg::Message, SNDMORE::Bool=false)
+    while true
+        rc = ccall((:zmq_send, zmq), Cint, (Ptr{Void}, Ptr{Message}, Cint),
+                   socket.data, &zmsg, (ZMQ_SNDMORE*SNDMORE) | ZMQ_DONTWAIT)
+        if rc == -1
+            zmq_errno() == EAGAIN || throw(StateError(jl_zmq_error_str()))
+            while (get_events(socket) & POLLOUT) == 0
+                wait(socket)
+            end
+        else
+            get_events(socket) != 0 && notify(socket)
+            break
+        end
     end
 end
 end # end v2only
 
 @v3only begin
-if VERSION <= v"0.4.0-dev+3703"
-    immutable Ref{T} end
-end    
-
-function send(socket::Socket, zmsg::Message, flag=@compat(Int32(0)))
-    if (get_events(socket) & POLLOUT) == 0
-        wait(socket; writable = true)
-    end
-    if VERSION <= v"0.4.0-dev+3703"
-        rc = ccall((:zmq_msg_send, zmq), Cint, (Ptr{Void}, Ptr{Message}, Cint),
-                    &zmsg, socket.data, flag)
-    else
-        rc = ccall((:zmq_msg_send, zmq), Cint, (Ref{Message}, Ptr{Message}, Cint),
-                    zmsg, socket.data, flag)
-    end    
-    if rc == -1
-        throw(StateError(jl_zmq_error_str()))
+function send(socket::Socket, zmsg::Message, SNDMORE::Bool=false)
+    while true
+        rc = ccall((:zmq_msg_send, zmq), Cint, (Ptr{Message}, Ptr{Void}, Cint),
+                    &zmsg, socket.data, (ZMQ_SNDMORE*SNDMORE) | ZMQ_DONTWAIT)
+        if rc == -1
+            zmq_errno() == EAGAIN || throw(StateError(jl_zmq_error_str()))
+            while (get_events(socket) & POLLOUT) == 0
+                wait(socket)
+            end
+        else
+            get_events(socket) != 0 && notify(socket)
+            break
+        end
     end
 end
 end # end v3only
 
 # strings are immutable, so we can send them zero-copy by default
-send(socket::Socket, msg::AbstractString, flag=@compat(Int32(0))) = send(socket, Message(msg), flag)
+send(socket::Socket, msg::AbstractString, SNDMORE::Bool=false) = send(socket, Message(msg), SNDMORE)
 
 # Make a copy of arrays before sending, by default, since it is too
 # dangerous to require that the array not change until ZMQ is done with it.
 # For zero-copy array messages, construct a Message explicitly.
-send(socket::Socket, msg::AbstractArray, flag=@compat(Int32(0))) = send(socket, Message(copy(msg)), flag)
+send(socket::Socket, msg::AbstractArray, SNDMORE::Bool=false) = send(socket, Message(copy(msg)), SNDMORE)
 
-function send(f::Function, socket::Socket, flag=@compat(Int32(0)))
+function send(f::Function, socket::Socket, SNDMORE::Bool=false)
     io = IOBuffer()
     f(io)
-    send(socket, Message(io), flag)
+    send(socket, Message(io), SNDMORE)
 end
 
 @v2only begin
@@ -565,17 +586,16 @@ function recv(socket::Socket)
     zmsg = Message()
     while true
         rc = ccall((:zmq_recv, zmq), Cint, (Ptr{Void}, Ptr{Message},  Cint),
-                    socket.data, &zmsg, NOBLOCK)
-        if rc != 0
-            if Libc.errno() == EAGAIN
-                while (get_events(socket) & POLLIN) == 0
-                    wait(socket; readable = true)
-                end
-                continue
-            end 
-            throw(StateError(jl_zmq_error_str()))
+                    socket.data, &zmsg, ZMQ_DONTWAIT)
+        if rc == -1
+            zmq_errno() == EAGAIN || throw(StateError(jl_zmq_error_str()))
+            while (get_events(socket) & POLLIN) == 0
+                wait(socket)
+            end
+        else
+            get_events(socket) != 0 && notify(socket)
+            break
         end
-        break
     end
     return zmsg
 end
@@ -584,19 +604,19 @@ end # end v2only
 @v3only begin
 function recv(socket::Socket)
     zmsg = Message()
+    rc = -1
     while true
         rc = ccall((:zmq_msg_recv, zmq), Cint, (Ptr{Message}, Ptr{Void}, Cint),
-                    &zmsg, socket.data, NOBLOCK)
+                    &zmsg, socket.data, ZMQ_DONTWAIT)
         if rc == -1
-            if Libc.errno() == EAGAIN
-                while (get_events(socket) & POLLIN) == 0
-                    wait(socket; readable = true)
-                end
-                continue
-            end 
-            throw(StateError(jl_zmq_error_str()))
+            zmq_errno() == EAGAIN || throw(StateError(jl_zmq_error_str()))
+            while (get_events(socket) & POLLIN) == 0
+                wait(socket)
+            end
+        else
+            get_events(socket) != 0 && notify(socket)
+            break
         end
-        break
     end
     return zmsg
 end
