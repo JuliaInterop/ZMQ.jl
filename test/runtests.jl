@@ -31,21 +31,13 @@ end
 
 
 s1=Socket(ctx2, REP)
-if ZMQ.version.major == 2 
-	ZMQ.set_hwm(s1, 1000)
-else 
-	ZMQ.set_sndhwm(s1, 1000)
-end
+ZMQ.set_sndhwm(s1, 1000)
 ZMQ.set_linger(s1, 1)
 ZMQ.set_identity(s1, "abcd")
 
 
 @assert ZMQ.get_identity(s1)::AbstractString == "abcd"
-if ZMQ.version.major == 2
-	@assert ZMQ.get_hwm(s1)::Integer == 1000
-else
-	@assert ZMQ.get_sndhwm(s1)::Integer == 1000
-end
+@assert ZMQ.get_sndhwm(s1)::Integer == 1000
 @assert ZMQ.get_linger(s1)::Integer == 1
 @assert ZMQ.ismore(s1) == false 
 
