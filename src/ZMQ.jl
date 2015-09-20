@@ -30,7 +30,7 @@ import Base:
     fd, wait, notify, close, connect,
     bind, send, recv
 
-export 
+export
     #Types
     StateError,Context,Socket,Message,
     #functions
@@ -56,7 +56,7 @@ function jl_zmq_error_str()
     if c_strerror != C_NULL
         strerror = bytestring(c_strerror)
         return strerror
-    else 
+    else
         return "Unknown error"
     end
 end
@@ -221,7 +221,7 @@ for (fset, fget, k, p) in [
             end
             return @compat Int(($p)[1])
         end
-    end        
+    end
 end
 
 # For some functions, the publicly-visible versions should require &
@@ -242,7 +242,7 @@ for (f,k) in ((:subscribe,6), (:unsubscribe,7))
                 throw(StateError(jl_zmq_error_str()))
             end
         end
-        $f(socket::Socket, filter::Union(Array,AbstractString)) =
+        @compat $f(socket::Socket, filter::Union{Array,AbstractString}) =
             $f_(socket, pointer(filter), sizeof(filter))
         $f(socket::Socket) = $f_(socket, C_NULL, 0)
     end
@@ -279,7 +279,7 @@ for (fset, fget, k) in [
             if rc != 0
                 throw(StateError(jl_zmq_error_str()))
             end
-        end      
+        end
     end
     if fget != nothing
         @eval function ($fget)(socket::Socket)
@@ -292,7 +292,7 @@ for (fset, fget, k) in [
             end
             return bytestring(unsafe_convert(Ptr{UInt8}, $u8ap), @compat Int(($sz)[1]))
         end
-    end        
+    end
 end
 
 function bind(socket::Socket, endpoint::AbstractString)
@@ -389,7 +389,7 @@ type Message <: AbstractArray{UInt8,1}
     # (note: now "owns" the buffer ... the Array must not be resized,
     #        or even written to after the message is sent!)
     Message(m::ByteString) = Message(m, unsafe_convert(Ptr{UInt8}, pointer(m)), sizeof(m))
-    Message{T<:ByteString}(p::SubString{T}) = 
+    Message{T<:ByteString}(p::SubString{T}) =
         Message(p, pointer(p.string.data)+p.offset, sizeof(p))
     Message(a::Array) = Message(a, pointer(a), sizeof(a))
     function Message(io::IOBuffer)
@@ -534,10 +534,10 @@ const PULL = 7
 const PUSH = 8
 const XPUB = 9
 const XSUB = 10
-const XREQ = DEALER        
-const XREP = ROUTER        
-const UPSTREAM = PULL      
-const DOWNSTREAM = PUSH    
+const XREQ = DEALER
+const XREP = ROUTER
+const UPSTREAM = PULL
+const DOWNSTREAM = PUSH
 
 #Message options
 const MORE = 1
