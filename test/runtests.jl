@@ -2,14 +2,14 @@ using ZMQ, Compat
 
 println("Testing with ZMQ version $(ZMQ.version)")
 
-ctx=Context(1)
+ctx=Context()
 
 @assert typeof(ctx) == Context
 
 ZMQ.close(ctx)
 
 #try to create socket with expired context
-try 
+try
 	Socket(ctx, PUB)
 	@assert false
 catch ex
@@ -17,13 +17,13 @@ catch ex
 end
 
 
-ctx2=Context(1)
+ctx2=Context()
 s=Socket(ctx2, PUB)
 @assert typeof(s) == Socket
 ZMQ.close(s)
 
 #trying to close already closed socket
-try 
+try
 	ZMQ.close(s)
 catch ex
 	@assert typeof(ex) == StateError
@@ -39,11 +39,11 @@ ZMQ.set_identity(s1, "abcd")
 @assert ZMQ.get_identity(s1)::AbstractString == "abcd"
 @assert ZMQ.get_sndhwm(s1)::Integer == 1000
 @assert ZMQ.get_linger(s1)::Integer == 1
-@assert ZMQ.ismore(s1) == false 
+@assert ZMQ.ismore(s1) == false
 
 s2=Socket(ctx2, REQ)
-@assert ZMQ.get_type(s1) == REP 
-@assert ZMQ.get_type(s2) == REQ 
+@assert ZMQ.get_type(s1) == REP
+@assert ZMQ.get_type(s2) == REQ
 
 ZMQ.bind(s1, "tcp://*:5555")
 ZMQ.connect(s2, "tcp://localhost:5555")
@@ -65,7 +65,7 @@ msg_sent = false
 	notify(c)
 end
 
-# This will hang forver if ZMQ blocks the entire process since 
+# This will hang forver if ZMQ blocks the entire process since
 # we'll never switch to the other task
 @assert (bytestring(ZMQ.recv(s1)) == "test request")
 @assert msg_sent == true
@@ -81,9 +81,3 @@ seek(o, 0)
 ZMQ.close(s1)
 ZMQ.close(s2)
 ZMQ.close(ctx2)
-
-
-
-
-
-
