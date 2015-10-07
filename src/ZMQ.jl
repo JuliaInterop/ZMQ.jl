@@ -122,7 +122,7 @@ type Context
     # close them before finalizing (otherwise zmq_term will hang)
     sockets::Vector{Socket}
 
-    function Context(n::Integer)
+    function Context()
         p = ccall((:zmq_ctx_new, zmq), Ptr{Void},  ())
         if p == C_NULL
             throw(StateError(jl_zmq_error_str()))
@@ -132,7 +132,8 @@ type Context
         return zctx
     end
 end
-Context() = Context(1)
+
+@deprecate Context(n::Integer) Context()
 
 function close(ctx::Context)
     if ctx.data != C_NULL # don't close twice!
