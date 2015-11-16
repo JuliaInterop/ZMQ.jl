@@ -16,6 +16,14 @@ if VERSION >= v"0.4.0-dev+3844"
 else
     using Base: EAGAIN
 end
+if VERSION >= v"0.5.0-dev+1229"
+    import Base.Filesystem: UV_READABLE, uv_pollcb
+else
+    import Base: UV_READABLE
+    if isdefined(Base, :uv_pollcb)
+        import Base: uv_pollcb
+    end
+end
 
 const depfile = joinpath(dirname(@__FILE__),"..","deps","deps.jl")
 if isfile(depfile)
@@ -61,7 +69,11 @@ function jl_zmq_error_str()
     end
 end
 
-if VERSION >= v"0.4-" && isdefined(Base,:_FDWatcher)
+if VERSION >= v"0.5-" && isdefined(Base, :Filesystem)
+    @windows_only using Base.Libc: WindowsRawSocket
+    const _FDWatcher = Base.Filesystem._FDWatcher
+    const _have_good_fdwatcher = true
+elseif VERSION >= v"0.4-" && isdefined(Base, :_FDWatcher)
     @windows_only using Base.Libc: WindowsRawSocket
     const _FDWatcher = Base._FDWatcher
     const _have_good_fdwatcher = true
@@ -251,13 +263,16 @@ end
 
 # Raw FD access
 @unix_only fd(socket::Socket) = RawFD(get_fd(socket))
-@windows_only fd(socket::Socket) = WindowsRawSocket(convert(Ptr{Void}, get_fd(socket)))
+@windows_only fd(socket::Socket) = WindowsRawSocket(convert(Ptr{Void},
+                                                            get_fd(socket)))
 if _have_good_fdwatcher
     wait(socket::Socket) = wait(socket.pollfd, readable=true, writable=false)
-    notify(socket::Socket) = Base.uv_pollcb(socket.pollfd.handle, Int32(0), Int32(Base.UV_READABLE))
+    notify(socket::Socket) = uv_pollcb(socket.pollfd.handle, Int32(0),
+                                       Int32(UV_READABLE))
 else
     wait(socket::Socket) = Base._wait(socket.pollfd, #=readable=#true, #=writable=#false)
-    notify(socket::Socket) = Base._uv_hook_pollcb(socket.pollfd, int32(0), int32(Base.UV_READABLE))
+    notify(socket::Socket) = Base._uv_hook_pollcb(socket.pollfd, int32(0),
+                                                  int32(UV_READABLE))
 end
 
 # Socket options of string type
