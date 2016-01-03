@@ -18,7 +18,7 @@ Install the ZeroMQ libraries for your OS using your favourite package manager.
 ```julia
 using ZMQ
 
-ctx=Context(1)
+ctx=Context()
 s1=Socket(ctx, REP)
 s2=Socket(ctx, REQ)
 
