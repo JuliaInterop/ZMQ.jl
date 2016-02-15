@@ -21,7 +21,7 @@ import Base:
     convert, get,
     length, size, stride, similar, getindex, setindex!,
     fd, wait, notify, close, connect,
-    bind, send, recv
+    bind, send, recv, unbind
 
 export
     #Types
@@ -277,6 +277,13 @@ end
 
 function bind(socket::Socket, endpoint::AbstractString)
     rc = ccall((:zmq_bind, zmq), Cint, (Ptr{Void}, Ptr{UInt8}), socket.data, endpoint)
+    if rc != 0
+        throw(StateError(jl_zmq_error_str()))
+    end
+end
+
+function unbind(socket::Socket, endpoint::AbstractString)
+    rc = ccall((:zmq_unbind, zmq), Cint, (Ptr{Void}, Ptr{UInt8}), socket.data, endpoint)
     if rc != 0
         throw(StateError(jl_zmq_error_str()))
     end

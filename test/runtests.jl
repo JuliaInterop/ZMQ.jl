@@ -78,6 +78,7 @@ o=convert(IOStream, msg)
 seek(o, 0)
 @assert (String(take!(o))=="another test request")
 
+ZMQ.unbind(s1, "tcp://*:5555")
 ZMQ.close(s1)
 ZMQ.close(s2)
 ZMQ.close(ctx2)
