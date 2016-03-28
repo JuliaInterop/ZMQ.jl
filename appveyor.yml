@@ -13,6 +13,7 @@ branches:
   only:
     - master
     - /release-.*/
+    - tk/avtest
 
 notifications:
   - provider: Email
@@ -36,6 +37,7 @@ install:
 build_script:
 # Need to convert from shallow to complete for Pkg.clone to work
   - IF EXIST .git\shallow (git fetch --unshallow)
+  - C:\projects\julia\bin\julia -e "Pkg.clone(\"WinRPM\"); Pkg.checkout(\"WinRPM\", \"tk/gccdll\")"
   - C:\projects\julia\bin\julia -F -e "versioninfo();
       Pkg.clone(pwd(), \"ZMQ\"); Pkg.build(\"ZMQ\")"
 
