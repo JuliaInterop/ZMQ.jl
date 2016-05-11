@@ -4,6 +4,7 @@ VERSION >= v"0.4.0-dev+6521" && __precompile__(true)
 
 module ZMQ
 using Compat
+import Compat.String
 if VERSION >= v"0.4.0-dev+3710"
     import Base.unsafe_convert
 else
@@ -245,7 +246,7 @@ ismore(socket::Socket) = get_rcvmore(socket)
 
 # subscribe/unsubscribe options take an arbitrary byte array
 for (f,k) in ((:subscribe,6), (:unsubscribe,7))
-    f_ = symbol(string(f, "_"))
+    f_ = @compat Symbol(string(f, "_"))
     @eval begin
         function $f_{T}(socket::Socket, filter::Ptr{T}, len::Integer)
             rc = ccall((:zmq_setsockopt, zmq), Cint,
@@ -285,7 +286,7 @@ for (fset, fget, k) in [
     (:set_tcp_accept_filter,       nothing,                     38)
     ]
     if fset != nothing
-        @eval function ($fset)(socket::Socket, option_val::ByteString)
+        @eval function ($fset)(socket::Socket, option_val::String)
             if length(option_val) > 255
                 throw(StateError("option value too large"))
             end
@@ -343,8 +344,9 @@ else
     close_handle(work) = Base.close(work)
 end
 gc_protect_cb(work) = (pop!(gc_protect, work.handle, nothing); close_handle(work))
+
 function gc_protect_handle(obj::Any)
-    work = Base.SingleAsyncWork(gc_protect_cb)
+    work = Compat.AsyncCondition(gc_protect_cb)
     gc_protect[work.handle] = (work,obj)
     work.handle
 end
@@ -404,8 +406,8 @@ type Message <: AbstractArray{UInt8,1}
     # Create a message with a given AbstractString or Array as a buffer (for send)
     # (note: now "owns" the buffer ... the Array must not be resized,
     #        or even written to after the message is sent!)
-    Message(m::ByteString) = Message(m, unsafe_convert(Ptr{UInt8}, pointer(m)), sizeof(m))
-    Message{T<:ByteString}(p::SubString{T}) =
+    Message(m::String) = Message(m, unsafe_convert(Ptr{UInt8}, pointer(m)), sizeof(m))
+    Message{T<:String}(p::SubString{T}) =
         Message(p, pointer(p.string.data)+p.offset, sizeof(p))
     Message(a::Array) = Message(a, pointer(a), sizeof(a))
     function Message(io::IOBuffer)
