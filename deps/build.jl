@@ -5,7 +5,7 @@ using Compat
 
 zmq = library_dependency("zmq", aliases = ["libzmq"])
 
-provides(Sources,URI("http://download.zeromq.org/zeromq-3.2.4.tar.gz"),zmq)
+provides(Sources,URI("https://archive.org/download/zeromq_3.2.4/zeromq-3.2.4.tar.gz"),zmq)
 provides(BuildProcess,Autotools(libtarget = "src/.libs/libzmq."*BinDeps.shlib_ext),zmq)
 
 @windows_only begin
