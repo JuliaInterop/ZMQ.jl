@@ -30,7 +30,7 @@ msg = ZMQ.recv(s1)
 out=convert(IOStream, msg)
 seek(out,0)
 #read out::MemIO as usual, eg. read(out,...) or takebuf_string(out)
-#or, conveniently, use bytestring(msg) to retrieve a string
+#or, conveniently, use unsafe_string(msg) to retrieve a string
 
 ZMQ.send(s1, Message("test response"))
 ZMQ.close(s1)

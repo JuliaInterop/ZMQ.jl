@@ -4,7 +4,7 @@ VERSION >= v"0.4.0-dev+6521" && __precompile__(true)
 
 module ZMQ
 using Compat
-import Compat.String
+import Compat: String, unsafe_string
 if VERSION >= v"0.4.0-dev+3710"
     import Base.unsafe_convert
 else
@@ -63,7 +63,7 @@ function jl_zmq_error_str()
     errno = zmq_errno()
     c_strerror = ccall ((:zmq_strerror, zmq), Ptr{UInt8}, (Cint,), errno)
     if c_strerror != C_NULL
-        strerror = bytestring(c_strerror)
+        strerror = unsafe_string(c_strerror)
         return strerror
     else
         return "Unknown error"
@@ -71,15 +71,21 @@ function jl_zmq_error_str()
 end
 
 if VERSION >= v"0.5-" && isdefined(Base, :Filesystem)
-    @windows_only using Base.Libc: WindowsRawSocket
+    if is_windows()
+        using Base.Libc: WindowsRawSocket
+    end
     const _FDWatcher = Base.Filesystem._FDWatcher
     const _have_good_fdwatcher = true
 elseif VERSION >= v"0.4-" && isdefined(Base, :_FDWatcher)
-    @windows_only using Base.Libc: WindowsRawSocket
+    if is_windows()
+        using Base.Libc: WindowsRawSocket
+    end
     const _FDWatcher = Base._FDWatcher
     const _have_good_fdwatcher = true
 else
-    @windows_only using Base: WindowsRawSocket
+    if is_windows()
+        using Base: WindowsRawSocket
+    end
     const _FDWatcher = Base.FDWatcher
     const _have_good_fdwatcher = false
 end
@@ -91,7 +97,7 @@ type Socket
 
     # ctx should be ::Context, but forward type references are not allowed
     function Socket(ctx, typ::Integer)
-        p = ccall((:zmq_socket, zmq), Ptr{Void},  (Ptr{Void}, Cint), ctx.data, typ)
+        p = ccall((:zmq_socket, zmq), Ptr{Void}, (Ptr{Void}, Cint), ctx.data, typ)
         if p == C_NULL
             throw(StateError(jl_zmq_error_str()))
         end
@@ -211,7 +217,7 @@ for (fset, fget, k, p) in [
     (:set_tcp_keepalive_intvl,     :get_tcp_keepalive_intvl,     37,   ip)
     (:set_rcvtimeo,                :get_rcvtimeo,                27,   ip)
     (:set_sndtimeo,                :get_sndtimeo,                28,   ip)
-    (nothing,                      :get_fd,                      14, @windows? pp : ip)
+    (nothing,                      :get_fd,                      14, is_windows() ? pp : ip)
     ]
     if fset != nothing
         @eval function ($fset)(socket::Socket, option_val::Integer)
@@ -263,9 +269,13 @@ for (f,k) in ((:subscribe,6), (:unsubscribe,7))
 end
 
 # Raw FD access
-@unix_only fd(socket::Socket) = RawFD(get_fd(socket))
-@windows_only fd(socket::Socket) = WindowsRawSocket(convert(Ptr{Void},
-                                                            get_fd(socket)))
+if is_unix()
+    fd(socket::Socket) = RawFD(get_fd(socket))
+end
+if is_windows()
+    fd(socket::Socket) = WindowsRawSocket(convert(Ptr{Void}, get_fd(socket)))
+end
+
 if _have_good_fdwatcher
     wait(socket::Socket) = wait(socket.pollfd, readable=true, writable=false)
     notify(socket::Socket) = uv_pollcb(socket.pollfd.handle, Int32(0),
@@ -307,7 +317,7 @@ for (fset, fget, k) in [
             if rc != 0
                 throw(StateError(jl_zmq_error_str()))
             end
-            return bytestring(unsafe_convert(Ptr{UInt8}, $u8ap), @compat Int(($sz)[1]))
+            return unsafe_string(unsafe_convert(Ptr{UInt8}, $u8ap), @compat Int(($sz)[1]))
         end
     end
 end
@@ -441,7 +451,8 @@ function setindex!(a::Message, v, i::Integer)
 end
 
 # Convert message to string (copies data)
-bytestring(zmsg::Message) = bytestring(pointer(zmsg), length(zmsg))
+unsafe_string(zmsg::Message) = Compat.unsafe_string(pointer(zmsg), length(zmsg))
+@deprecate bytestring(zmsg::Message) unsafe_string(zmsg::Message)
 
 # Build an IOStream from a message
 # Copies the data
