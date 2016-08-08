@@ -452,7 +452,11 @@ end
 
 # Convert message to string (copies data)
 unsafe_string(zmsg::Message) = Compat.unsafe_string(pointer(zmsg), length(zmsg))
-@deprecate bytestring(zmsg::Message) unsafe_string(zmsg::Message)
+if VERSION < v"0.5-dev+4341"
+    bytestring(zmsg::Message) = unsafe_string(zmsg)
+else
+    @deprecate bytestring(zmsg::Message) unsafe_string(zmsg::Message)
+end
 
 # Build an IOStream from a message
 # Copies the data

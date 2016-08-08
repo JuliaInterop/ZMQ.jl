@@ -88,5 +88,9 @@ let olderr = STDERR
    @assert bytestring(Message("hello")) == "hello"
    redirect_stderr(olderr)
    close(wrerr)
-   @assert contains(readstring(rderr), "WARNING: bytestring(zmsg::Message) is deprecated")
+   if VERSION < v"0.5-dev+4341"
+       @assert !contains(readstring(rderr), "WARNING: bytestring(zmsg::Message) is deprecated")
+   else
+       @assert contains(readstring(rderr), "WARNING: bytestring(zmsg::Message) is deprecated")
+   end
 end
