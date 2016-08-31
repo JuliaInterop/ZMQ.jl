@@ -1,7 +1,7 @@
 environment:
   matrix:
-  - JULIAVERSION: "julianightlies/bin/winnt/x86/0.5/julia-0.5.0-0350e5769b-win32.exe"
-  - JULIAVERSION: "julianightlies/bin/winnt/x64/0.5/julia-0.5.0-0350e5769b-win64.exe"
+#  - JULIAVERSION: "julianightlies/bin/winnt/x86/0.5/julia-0.5.0-0350e5769b-win32.exe"
+#  - JULIAVERSION: "julianightlies/bin/winnt/x64/0.5/julia-0.5.0-0350e5769b-win64.exe"
   - JULIAVERSION: "julialang/bin/winnt/x86/0.4/julia-0.4-latest-win32.exe"
   - JULIAVERSION: "julialang/bin/winnt/x64/0.4/julia-0.4-latest-win64.exe"
   - JULIAVERSION: "julialang/bin/winnt/x86/0.5/julia-0.5-latest-win32.exe"
@@ -39,7 +39,7 @@ build_script:
   - IF EXIST .git\shallow (git fetch --unshallow)
 #  - C:\projects\julia\bin\julia -e "Pkg.clone(\"WinRPM\"); Pkg.checkout(\"WinRPM\", \"tk/gccdll\")"
   - C:\projects\julia\bin\julia -F -e "versioninfo();
-      Pkg.clone(pwd(), \"ZMQ\"); Pkg.build(\"ZMQ\")"
+       Pkg.clone(\"WinRPM\"); Pkg.clone(pwd(), \"ZMQ\"); Pkg.build(\"ZMQ\")"
 
 test_script:
   - C:\projects\julia\bin\julia --check-bounds=yes -e "Pkg.test(\"ZMQ\")"
