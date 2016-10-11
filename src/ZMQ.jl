@@ -1,22 +1,15 @@
 # Support for ZeroMQ, a network and interprocess communication library
 
-VERSION >= v"0.4.0-dev+6521" && __precompile__(true)
+__precompile__(true)
 
 module ZMQ
 using Compat
 import Compat: String, unsafe_string
-if VERSION >= v"0.4.0-dev+3710"
-    import Base.unsafe_convert
-else
-    const unsafe_convert = Base.convert
-end
-if VERSION >= v"0.4.0-dev+3844"
-    using Base.Libdl, Base.Libc
-    using Base.Libdl: dlopen_e
-    using Base.Libc: EAGAIN
-else
-    using Base: EAGAIN
-end
+import Base.unsafe_convert
+using Base.Libdl, Base.Libc
+using Base.Libdl: dlopen_e
+using Base.Libc: EAGAIN
+
 if VERSION >= v"0.5.0-dev+1229"
     import Base.Filesystem: UV_READABLE, uv_pollcb
 else
@@ -344,15 +337,7 @@ end
 const gc_protect = Dict{Ptr{Void},Any}()
 # 0.2 compatibility
 gc_protect_cb(work, status) = gc_protect_cb(work)
-if VERSION < v"0.4.0-dev+3970"
-    function close_handle(work)
-        Base.disassociate_julia_struct(work.handle)
-        ccall(:jl_close_uv,Void,(Ptr{Void},),work.handle)
-        Base.unpreserve_handle(work)
-    end
-else
-    close_handle(work) = Base.close(work)
-end
+close_handle(work) = Base.close(work)
 gc_protect_cb(work) = (pop!(gc_protect, work.handle, nothing); close_handle(work))
 
 function gc_protect_handle(obj::Any)
