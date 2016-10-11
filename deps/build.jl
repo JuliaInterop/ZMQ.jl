@@ -3,7 +3,21 @@ using Compat
 
 @BinDeps.setup
 
-zmq = library_dependency("zmq", aliases = ["libzmq"])
+function validate(name, handle)
+    try
+        fhandle = dlsym(handle, :zmq_version)
+        major = Array(Cint,1)
+        minor = Array(Cint,1)
+        patch = Array(Cint,1)
+        ccall(fhandle, Void, (Ptr{Cint}, Ptr{Cint}, Ptr{Cint}), major, minor, patch)
+        global const version = VersionNumber(major[1], minor[1], patch[1])
+        return version >= v"3"
+    catch
+        return false
+    end
+end
+
+zmq = library_dependency("zmq", aliases = ["libzmq"], validate=validate)
 
 provides(AptGet,"libzmq3-dev",zmq)
 
