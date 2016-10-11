@@ -10,8 +10,7 @@ function validate(name, handle)
         minor = Array(Cint,1)
         patch = Array(Cint,1)
         ccall(fhandle, Void, (Ptr{Cint}, Ptr{Cint}, Ptr{Cint}), major, minor, patch)
-        global const version = VersionNumber(major[1], minor[1], patch[1])
-        return version >= v"3"
+        return VersionNumber(major[1], minor[1], patch[1]) >= v"3"
     catch
         return false
     end
