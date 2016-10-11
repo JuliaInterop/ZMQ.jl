@@ -586,6 +586,12 @@ const FORWARDER = 2
 const QUEUE = 3
 
 function __init__()
+    major = Array(Cint,1)
+    minor = Array(Cint,1)
+    patch = Array(Cint,1)
+    ccall((:zmq_version, zmq), Void, (Ptr{Cint}, Ptr{Cint}, Ptr{Cint}), major, minor, patch)
+    global const version = VersionNumber(major[1], minor[1], patch[1])
+
     global const gc_free_fn_c = cfunction(gc_free_fn, Cint, (Ptr{Void}, Ptr{Void}))
 end
 
