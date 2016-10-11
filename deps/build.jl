@@ -5,7 +5,7 @@ using Compat
 
 function validate(name, handle)
     try
-        fhandle = dlsym(handle, :zmq_version)
+        fhandle = Libdl.dlsym(handle, :zmq_version)
         major = Array(Cint,1)
         minor = Array(Cint,1)
         patch = Array(Cint,1)
