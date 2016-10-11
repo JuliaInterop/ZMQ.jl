@@ -591,7 +591,9 @@ function __init__()
     patch = Array(Cint,1)
     ccall((:zmq_version, zmq), Void, (Ptr{Cint}, Ptr{Cint}, Ptr{Cint}), major, minor, patch)
     global const version = VersionNumber(major[1], minor[1], patch[1])
-
+    if version < v"3"
+        error("ZMQ version $version < 3 is not supported")
+    end
     global const gc_free_fn_c = cfunction(gc_free_fn, Cint, (Ptr{Void}, Ptr{Void}))
 end
 
