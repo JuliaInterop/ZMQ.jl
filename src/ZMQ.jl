@@ -54,7 +54,7 @@ show(io, thiserr::StateError) = print(io, "ZMQ: ", thiserr.msg)
 zmq_errno() = ccall((:zmq_errno, zmq), Cint, ())
 function jl_zmq_error_str()
     errno = zmq_errno()
-    c_strerror = ccall ((:zmq_strerror, zmq), Ptr{UInt8}, (Cint,), errno)
+    c_strerror = ccall((:zmq_strerror, zmq), Ptr{UInt8}, (Cint,), errno)
     if c_strerror != C_NULL
         strerror = unsafe_string(c_strerror)
         return strerror
