@@ -21,7 +21,7 @@ zmq = library_dependency("zmq", aliases = ["libzmq"], validate = validate)
 provides(Sources, URI("https://archive.org/download/zeromq_3.2.4/zeromq-3.2.4.tar.gz"), zmq)
 provides(BuildProcess, Autotools(libtarget = "src/.libs/libzmq." * BinDeps.shlib_ext), zmq)
 
-provides(AptGet, "libzmq3-dev", zmq, os = :Linux)
+provides(AptGet, "libzmq3", zmq, os = :Linux)
 
 if is_windows()
     using WinRPM
