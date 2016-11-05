@@ -6,9 +6,9 @@ using Compat
 function validate(name, handle)
     try
         fhandle = Libdl.dlsym(handle, :zmq_version)
-        major = Array(Cint,1)
-        minor = Array(Cint,1)
-        patch = Array(Cint,1)
+        major = Vector{Cint}(1)
+        minor = Vector{Cint}(1)
+        patch = Vector{Cint}(1)
         ccall(fhandle, Void, (Ptr{Cint}, Ptr{Cint}, Ptr{Cint}), major, minor, patch)
         return VersionNumber(major[1], minor[1], patch[1]) >= v"3"
     catch
@@ -16,23 +16,19 @@ function validate(name, handle)
     end
 end
 
-zmq = library_dependency("zmq", aliases = ["libzmq"], validate=validate)
+zmq = library_dependency("zmq", aliases = ["libzmq"], validate = validate)
 
-provides(AptGet,"libzmq3-dev",zmq)
+provides(Sources, URI("https://archive.org/download/zeromq_3.2.4/zeromq-3.2.4.tar.gz"), zmq)
+provides(BuildProcess, Autotools(libtarget = "src/.libs/libzmq." * BinDeps.shlib_ext), zmq)
 
-provides(Sources,URI("https://archive.org/download/zeromq_3.2.4/zeromq-3.2.4.tar.gz"),zmq)
-provides(BuildProcess,Autotools(libtarget = "src/.libs/libzmq."*BinDeps.shlib_ext),zmq)
+provides(AptGet, "libzmq3-dev", zmq, os = :Linux)
 
 if is_windows()
     using WinRPM
     provides(WinRPM.RPM, "zeromq", [zmq], os = :Windows)
-end
-
-if is_apple()
-    if Pkg.installed("Homebrew") === nothing
-        error("Homebrew package not installed, please run Pkg.add(\"Homebrew\")")  end
+elseif is_apple()
     using Homebrew
-    provides( Homebrew.HB, "staticfloat/juliadeps/zeromq32", zmq, os = :Darwin )
+    provides(Homebrew.HB, "staticfloat/juliadeps/zeromq32", zmq, os = :Darwin)
 end
 
-@BinDeps.install @compat Dict(:zmq => :zmq)
+@BinDeps.install Dict(:zmq => :zmq)
