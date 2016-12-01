@@ -22,7 +22,7 @@ provides(Sources, URI("https://archive.org/download/zeromq_3.2.4/zeromq-3.2.4.ta
 provides(BuildProcess, Autotools(libtarget = "src/.libs/libzmq." * BinDeps.shlib_ext), zmq)
 
 provides(AptGet, "libzmq3", zmq, os = :Linux)
-provides(Yum, "czmq-devel", zmq, os = :Linux)
+provides(Yum, "czmq", zmq, os = :Linux)
 
 if is_windows()
     using WinRPM
