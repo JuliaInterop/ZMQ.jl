@@ -16,12 +16,13 @@ function validate(name, handle)
     end
 end
 
-zmq = library_dependency("zmq", aliases = ["libzmq", "libzmq.so.3"], validate = validate)
+zmq = library_dependency("zmq", aliases = ["libzmq", "libzmq.so.3", "libzmq.so.4", "libzmq.so.5"], validate = validate)
 
 provides(Sources, URI("https://archive.org/download/zeromq_3.2.4/zeromq-3.2.4.tar.gz"), zmq)
 provides(BuildProcess, Autotools(libtarget = "src/.libs/libzmq." * BinDeps.shlib_ext), zmq)
 
 provides(AptGet, "libzmq3", zmq, os = :Linux)
+provides(Yum, "czmq", zmq, os = :Linux)
 
 if is_windows()
     using WinRPM
