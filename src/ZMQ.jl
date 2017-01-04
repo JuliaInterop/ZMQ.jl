@@ -403,7 +403,7 @@ type Message <: AbstractArray{UInt8,1}
     #        or even written to after the message is sent!)
     Message(m::String) = Message(m, unsafe_convert(Ptr{UInt8}, pointer(m)), sizeof(m))
     Message{T<:String}(p::SubString{T}) =
-        Message(p, pointer(p.string.data)+p.offset, sizeof(p))
+        Message(p, pointer(p.string)+p.offset, sizeof(p))
     Message(a::Array) = Message(a, pointer(a), sizeof(a))
     function Message(io::IOBuffer)
         if !io.readable || !io.seekable
