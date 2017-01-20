@@ -139,7 +139,7 @@ type Context
         if p == C_NULL
             throw(StateError(jl_zmq_error_str()))
         end
-        zctx = new(p, Array(Socket,0))
+        zctx = new(p, Socket[])
         finalizer(zctx, close)
         return zctx
     end
@@ -418,7 +418,7 @@ end
 isfreed(m::Message) = haskey(gc_protect, m.handle)
 
 # AbstractArray behaviors:
-similar(a::Message, T, dims::Dims) = Array(T, dims) # ?
+similar(a::Message, T, dims::Dims) = Array{T}(dims) # ?
 length(zmsg::Message) = @compat Int(ccall((:zmq_msg_size, zmq), Csize_t, (Ptr{Message},), &zmsg))
 size(zmsg::Message) = (length(zmsg),)
 unsafe_convert(::Type{Ptr{UInt8}}, zmsg::Message) = ccall((:zmq_msg_data, zmq), Ptr{UInt8}, (Ptr{Message},), &zmsg)
@@ -571,11 +571,11 @@ const FORWARDER = 2
 const QUEUE = 3
 
 function __init__()
-    major = Array(Cint,1)
-    minor = Array(Cint,1)
-    patch = Array(Cint,1)
+    major = Ref{Cint}()
+    minor = Ref{Cint}()
+    patch = Ref{Cint}()
     ccall((:zmq_version, zmq), Void, (Ptr{Cint}, Ptr{Cint}, Ptr{Cint}), major, minor, patch)
-    global const version = VersionNumber(major[1], minor[1], patch[1])
+    global const version = VersionNumber(major[], minor[], patch[])
     if version < v"3"
         error("ZMQ version $version < 3 is not supported")
     end
