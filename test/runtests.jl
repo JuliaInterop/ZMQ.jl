@@ -1,4 +1,5 @@
 using ZMQ, Compat
+using Compat.String
 
 println("Testing with ZMQ version $(ZMQ.version)")
 
