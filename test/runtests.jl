@@ -76,7 +76,7 @@ ZMQ.send(s2, Message("another test request"))
 msg = ZMQ.recv(s1)
 o=convert(IOStream, msg)
 seek(o, 0)
-@assert (takebuf_string(o)=="another test request")
+@assert (String(take!(o))=="another test request")
 
 ZMQ.close(s1)
 ZMQ.close(s2)
@@ -84,6 +84,8 @@ ZMQ.close(ctx2)
 
 # deprecate bytestring(::Message)
 let olderr = STDERR
+   old_have_color = Base.have_color
+   eval(Base, :(have_color = false)) # avoid control characters in output
    rderr, wrerr = redirect_stderr()
    reader = @async readstring(rderr)
    @assert bytestring(Message("hello")) == "hello"
@@ -94,4 +96,5 @@ let olderr = STDERR
    else
        @assert contains(wait(reader), "WARNING: bytestring(zmsg::Message) is deprecated")
    end
+   eval(Base, :(have_color = $old_have_color)) # avoid control characters in output
 end
