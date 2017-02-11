@@ -27,7 +27,7 @@ else
 end
 
 import Base:
-    convert, get, bytestring,
+    convert, get,
     length, size, stride, similar, getindex, setindex!,
     fd, wait, notify, close, connect,
     bind, send, recv
@@ -353,7 +353,7 @@ function gc_free_fn(data::Ptr{Void}, hint::Ptr{Void})
 end
 
 ## Messages ##
-bitstype 64 * 8 MsgPadding
+@compat primitive type MsgPadding 64 * 8 end
 
 type Message <: AbstractArray{UInt8,1}
     # Matching the declaration in the header: char _[64];
@@ -437,10 +437,13 @@ end
 
 # Convert message to string (copies data)
 unsafe_string(zmsg::Message) = Compat.unsafe_string(pointer(zmsg), length(zmsg))
-if VERSION < v"0.5-dev+4341"
-    bytestring(zmsg::Message) = unsafe_string(zmsg)
-else
-    @deprecate bytestring(zmsg::Message) unsafe_string(zmsg::Message)
+if isdefined(Base, :bytestring)
+    import Base: bytestring
+    if VERSION < v"0.5-dev+4341"
+        bytestring(zmsg::Message) = unsafe_string(zmsg)
+    else
+        @deprecate bytestring(zmsg::Message) unsafe_string(zmsg::Message)
+    end
 end
 
 # Build an IOStream from a message

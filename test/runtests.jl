@@ -83,19 +83,25 @@ ZMQ.close(s1)
 ZMQ.close(s2)
 ZMQ.close(ctx2)
 
-# deprecate bytestring(::Message)
-let olderr = STDERR
-   old_have_color = Base.have_color
-   eval(Base, :(have_color = false)) # avoid control characters in output
-   rderr, wrerr = redirect_stderr()
-   reader = @async readstring(rderr)
-   @assert bytestring(Message("hello")) == "hello"
-   redirect_stderr(olderr)
-   close(wrerr)
-   if VERSION < v"0.5-dev+4341"
-       @assert isempty(wait(reader))
-   else
-       @assert contains(wait(reader), "WARNING: bytestring(zmsg::Message) is deprecated")
-   end
-   eval(Base, :(have_color = $old_have_color)) # avoid control characters in output
+# deprecate bytestring(::Message), removed on 0.6
+isdefined(Base, :bytestring) && let olderr = STDERR
+    old_have_color = Base.have_color
+    eval(Base, :(have_color = false)) # avoid control characters in output
+    local rderr, wrerr, reader
+    try
+        rderr, wrerr = redirect_stderr()
+        reader = @async readstring(rderr)
+        @assert bytestring(Message("hello")) == "hello"
+    finally
+        # Switch the stderr back before letting the error propagate so that
+        # the error output won't be swallowed.
+        redirect_stderr(olderr)
+        close(wrerr)
+        eval(Base, :(have_color = $old_have_color)) # avoid control characters in output
+    end
+    if VERSION < v"0.5-dev+4341"
+        @assert isempty(wait(reader))
+    else
+        @assert contains(wait(reader), "WARNING: bytestring(zmsg::Message) is deprecated")
+    end
 end
