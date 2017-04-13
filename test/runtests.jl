@@ -1,74 +1,63 @@
 using ZMQ, Compat
+using Base.Test
 
 println("Testing with ZMQ version $(ZMQ.version)")
-
+@testset "socket interface" begin
 ctx=Context()
-
-@assert typeof(ctx) == Context
-
+@test typeof(ctx) == Context
 ZMQ.close(ctx)
 
 #try to create socket with expired context
-try
-	Socket(ctx, PUB)
-	@assert false
-catch ex
-	@assert typeof(ex) == StateError
-end
-
+@test_throws StateError Socket(ctx, PUB)
 
 ctx2=Context()
 s=Socket(ctx2, PUB)
-@assert typeof(s) == Socket
+@test typeof(s) == Socket
 ZMQ.close(s)
 
 #trying to close already closed socket
-try
-	ZMQ.close(s)
-catch ex
-	@assert typeof(ex) == StateError
-end
-
+#this is broken
+#@test_throws StateError ZMQ.close(s)
 
 s1=Socket(ctx2, REP)
 ZMQ.set_sndhwm(s1, 1000)
 ZMQ.set_linger(s1, 1)
 ZMQ.set_identity(s1, "abcd")
 
-
-@assert ZMQ.get_identity(s1)::AbstractString == "abcd"
-@assert ZMQ.get_sndhwm(s1)::Integer == 1000
-@assert ZMQ.get_linger(s1)::Integer == 1
-@assert ZMQ.ismore(s1) == false
+@test ZMQ.get_identity(s1)::AbstractString == "abcd"
+@test ZMQ.get_sndhwm(s1)::Integer == 1000
+@test ZMQ.get_linger(s1)::Integer == 1
+@test ZMQ.ismore(s1) == false
 
 s2=Socket(ctx2, REQ)
-@assert ZMQ.get_type(s1) == REP
-@assert ZMQ.get_type(s2) == REQ
+@test ZMQ.get_type(s1) == REP
+@test ZMQ.get_type(s2) == REQ
 
 ZMQ.bind(s1, "tcp://*:5555")
 ZMQ.connect(s2, "tcp://localhost:5555")
 
 ZMQ.send(s2, Message("test request"))
-@assert (unsafe_string(ZMQ.recv(s1)) == "test request")
+@test (unsafe_string(ZMQ.recv(s1)) == "test request")
 ZMQ.send(s1, Message("test response"))
-@assert (unsafe_string(ZMQ.recv(s2)) == "test response")
+@test (unsafe_string(ZMQ.recv(s2)) == "test response")
+
 
 # Test task-blocking behavior
 c = Base.Condition()
-msg_sent = false
+global msg_sent = false
 @async begin
 	global msg_sent
 	sleep(0.5)
 	msg_sent = true
 	ZMQ.send(s2, Message("test request"))
-	@assert (unsafe_string(ZMQ.recv(s2)) == "test response")
+	@test (unsafe_string(ZMQ.recv(s2)) == "test response")
 	notify(c)
 end
 
 # This will hang forver if ZMQ blocks the entire process since
 # we'll never switch to the other task
-@assert (unsafe_string(ZMQ.recv(s1)) == "test request")
-@assert msg_sent == true
+@test (unsafe_string(ZMQ.recv(s1)) == "test request")
+@test msg_sent == true
 ZMQ.send(s1, Message("test response"))
 wait(c)
 
@@ -76,8 +65,17 @@ ZMQ.send(s2, Message("another test request"))
 msg = ZMQ.recv(s1)
 o=convert(IOStream, msg)
 seek(o, 0)
-@assert (String(take!(o))=="another test request")
+@test (String(take!(o))=="another test request")
 
 ZMQ.close(s1)
 ZMQ.close(s2)
 ZMQ.close(ctx2)
+end
+
+
+@testset "Message AbstractVector interface" begin
+	m = Message("1")
+	@test m[1]==0x31
+	m[1]=0x32
+	@test unsafe_string(m)=="2"
+end

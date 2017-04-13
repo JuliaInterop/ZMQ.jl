@@ -398,7 +398,7 @@ function setindex!(a::Message, v, i::Integer)
     if i < 1 || i > length(a)
         throw(BoundsError())
     end
-    unsafe_store(pointer(a), v, i)
+    unsafe_store!(pointer(a), v, i)
 end
 
 # Convert message to string (copies data)
