@@ -498,8 +498,11 @@ function send(socket::Socket, zmsg::Message, SNDMORE::Bool=false)
                 wait(socket)
             end
         else
+          notify_is_expensive = !isempty(socket.pollfd.notify.waitq)
+          if notify_is_expensive
             get_events(socket) != 0 && notify(socket)
-            break
+          end
+          break
         end
     end
 end
@@ -530,8 +533,11 @@ function recv(socket::Socket)
                 wait(socket)
             end
         else
+          notify_is_expensive = !isempty(socket.pollfd.notify.waitq)
+          if notify_is_expensive
             get_events(socket) != 0 && notify(socket)
-            break
+          end
+          break
         end
     end
     return zmsg
