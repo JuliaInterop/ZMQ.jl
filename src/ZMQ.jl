@@ -391,13 +391,13 @@ size(zmsg::Message) = (length(zmsg),)
 # TODO: change `Any` to `Ref{Message}` when 0.6 support is dropped.
 unsafe_convert(::Type{Ptr{UInt8}}, zmsg::Message) = ccall((:zmq_msg_data, libzmq), Ptr{UInt8}, (Any,), zmsg)
 function getindex(a::Message, i::Integer)
-    if i < 1 || i > length(a)
+    @boundscheck if i < 1 || i > length(a)
         throw(BoundsError())
     end
     unsafe_load(pointer(a), i)
 end
 function setindex!(a::Message, v, i::Integer)
-    if i < 1 || i > length(a)
+    @boundscheck if i < 1 || i > length(a)
         throw(BoundsError())
     end
     unsafe_store!(pointer(a), v, i)
