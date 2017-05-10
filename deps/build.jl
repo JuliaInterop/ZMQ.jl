@@ -19,7 +19,7 @@ end
 zmq = library_dependency("zmq", aliases = ["libzmq", "libzmq.so.3", "libzmq.so.4", "libzmq.so.5"], validate = validate)
 
 provides(Sources, URI("https://github.com/zeromq/zeromq3-x/releases/download/v3.2.5/zeromq-3.2.5.tar.gz"), zmq)
-provides(BuildProcess, Autotools(libtarget = "src/.libs/libzmq." * BinDeps.shlib_ext), zmq)
+provides(BuildProcess, Autotools(libtarget = "src/.libs/libzmq." * Libdl.dlext), zmq)
 
 provides(AptGet, "libzmq3", zmq, os = :Linux)
 provides(Yum, "czmq", zmq, os = :Linux)
