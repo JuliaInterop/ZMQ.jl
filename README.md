@@ -1,8 +1,8 @@
 # A Julia interface to ZeroMQ
-[![Build Status](https://api.travis-ci.org/JuliaLang/ZMQ.jl.svg)](https://travis-ci.org/JuliaLang/ZMQ.jl)
-[![Build status](https://ci.appveyor.com/api/projects/status/laybx903pd12j2ik/branch/master?svg=true)](https://ci.appveyor.com/project/tkelman/zmq-jl/branch/master)
+[![Build Status](https://api.travis-ci.org/JuliaInterop/ZMQ.jl.svg)](https://travis-ci.org/JuliaInterop/ZMQ.jl)
+[![Build status](https://ci.appveyor.com/api/projects/status/qvcuq6k2thf672j8/branch/master?svg=true)](https://ci.appveyor.com/project/tkelman/zmq-jl-dvf4g/branch/master)
 
-**ZMQ.jl** is a [Julia] (http://julialang.org) interface to [ZeroMQ, The Intelligent Transport Layer] (http://zeromq.org). 
+**ZMQ.jl** is a [Julia](http://julialang.org) interface to [ZeroMQ, The Intelligent Transport Layer](http://zeromq.org). 
 
 ZMQ version 3 or later is required; ZMQ version 2 is not supported.
 

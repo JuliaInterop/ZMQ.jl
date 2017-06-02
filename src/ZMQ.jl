@@ -1,22 +1,15 @@
 # Support for ZeroMQ, a network and interprocess communication library
 
-VERSION >= v"0.4.0-dev+6521" && __precompile__(true)
+__precompile__(true)
 
 module ZMQ
 using Compat
 import Compat: String, unsafe_string
-if VERSION >= v"0.4.0-dev+3710"
-    import Base.unsafe_convert
-else
-    const unsafe_convert = Base.convert
-end
-if VERSION >= v"0.4.0-dev+3844"
-    using Base.Libdl, Base.Libc
-    using Base.Libdl: dlopen_e
-    using Base.Libc: EAGAIN
-else
-    using Base: EAGAIN
-end
+import Base.unsafe_convert
+using Base.Libdl, Base.Libc
+using Base.Libdl: dlopen_e
+using Base.Libc: EAGAIN
+
 if VERSION >= v"0.5.0-dev+1229"
     import Base.Filesystem: UV_READABLE, uv_pollcb
 else
@@ -34,7 +27,7 @@ else
 end
 
 import Base:
-    convert, get, bytestring,
+    convert, get,
     length, size, stride, similar, getindex, setindex!,
     fd, wait, notify, close, connect,
     bind, send, recv
@@ -61,7 +54,7 @@ show(io, thiserr::StateError) = print(io, "ZMQ: ", thiserr.msg)
 zmq_errno() = ccall((:zmq_errno, zmq), Cint, ())
 function jl_zmq_error_str()
     errno = zmq_errno()
-    c_strerror = ccall ((:zmq_strerror, zmq), Ptr{UInt8}, (Cint,), errno)
+    c_strerror = ccall((:zmq_strerror, zmq), Ptr{UInt8}, (Cint,), errno)
     if c_strerror != C_NULL
         strerror = unsafe_string(c_strerror)
         return strerror
@@ -146,7 +139,7 @@ type Context
         if p == C_NULL
             throw(StateError(jl_zmq_error_str()))
         end
-        zctx = new(p, Array(Socket,0))
+        zctx = new(p, Socket[])
         finalizer(zctx, close)
         return zctx
     end
@@ -344,15 +337,7 @@ end
 const gc_protect = Dict{Ptr{Void},Any}()
 # 0.2 compatibility
 gc_protect_cb(work, status) = gc_protect_cb(work)
-if VERSION < v"0.4.0-dev+3970"
-    function close_handle(work)
-        Base.disassociate_julia_struct(work.handle)
-        ccall(:jl_close_uv,Void,(Ptr{Void},),work.handle)
-        Base.unpreserve_handle(work)
-    end
-else
-    close_handle(work) = Base.close(work)
-end
+close_handle(work) = Base.close(work)
 gc_protect_cb(work) = (pop!(gc_protect, work.handle, nothing); close_handle(work))
 
 function gc_protect_handle(obj::Any)
@@ -368,7 +353,7 @@ function gc_free_fn(data::Ptr{Void}, hint::Ptr{Void})
 end
 
 ## Messages ##
-bitstype 64 * 8 MsgPadding
+@compat primitive type MsgPadding 64 * 8 end
 
 type Message <: AbstractArray{UInt8,1}
     # Matching the declaration in the header: char _[64];
@@ -418,7 +403,7 @@ type Message <: AbstractArray{UInt8,1}
     #        or even written to after the message is sent!)
     Message(m::String) = Message(m, unsafe_convert(Ptr{UInt8}, pointer(m)), sizeof(m))
     Message{T<:String}(p::SubString{T}) =
-        Message(p, pointer(p.string.data)+p.offset, sizeof(p))
+        Message(p, pointer(p.string)+p.offset, sizeof(p))
     Message(a::Array) = Message(a, pointer(a), sizeof(a))
     function Message(io::IOBuffer)
         if !io.readable || !io.seekable
@@ -433,7 +418,7 @@ end
 isfreed(m::Message) = haskey(gc_protect, m.handle)
 
 # AbstractArray behaviors:
-similar(a::Message, T, dims::Dims) = Array(T, dims) # ?
+similar(a::Message, T, dims::Dims) = Array{T}(dims) # ?
 length(zmsg::Message) = @compat Int(ccall((:zmq_msg_size, zmq), Csize_t, (Ptr{Message},), &zmsg))
 size(zmsg::Message) = (length(zmsg),)
 unsafe_convert(::Type{Ptr{UInt8}}, zmsg::Message) = ccall((:zmq_msg_data, zmq), Ptr{UInt8}, (Ptr{Message},), &zmsg)
@@ -452,10 +437,13 @@ end
 
 # Convert message to string (copies data)
 unsafe_string(zmsg::Message) = Compat.unsafe_string(pointer(zmsg), length(zmsg))
-if VERSION < v"0.5-dev+4341"
-    bytestring(zmsg::Message) = unsafe_string(zmsg)
-else
-    @deprecate bytestring(zmsg::Message) unsafe_string(zmsg::Message)
+if isdefined(Base, :bytestring)
+    import Base: bytestring
+    if VERSION < v"0.5-dev+4341"
+        bytestring(zmsg::Message) = unsafe_string(zmsg)
+    else
+        @deprecate bytestring(zmsg::Message) unsafe_string(zmsg::Message)
+    end
 end
 
 # Build an IOStream from a message
@@ -586,11 +574,11 @@ const FORWARDER = 2
 const QUEUE = 3
 
 function __init__()
-    major = Array(Cint,1)
-    minor = Array(Cint,1)
-    patch = Array(Cint,1)
+    major = Ref{Cint}()
+    minor = Ref{Cint}()
+    patch = Ref{Cint}()
     ccall((:zmq_version, zmq), Void, (Ptr{Cint}, Ptr{Cint}, Ptr{Cint}), major, minor, patch)
-    global const version = VersionNumber(major[1], minor[1], patch[1])
+    global const version = VersionNumber(major[], minor[], patch[])
     if version < v"3"
         error("ZMQ version $version < 3 is not supported")
     end
