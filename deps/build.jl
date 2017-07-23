@@ -24,10 +24,10 @@ provides(BuildProcess, Autotools(libtarget = "src/.libs/libzmq." * Libdl.dlext),
 provides(AptGet, "libzmq3", zmq, os = :Linux)
 provides(Yum, "czmq", zmq, os = :Linux)
 
-if is_windows()
+if Compat.Sys.iswindows()
     using WinRPM
     provides(WinRPM.RPM, "zeromq", [zmq], os = :Windows)
-elseif is_apple()
+elseif Compat.Sys.isapple()
     using Homebrew
     provides(Homebrew.HB, "staticfloat/juliadeps/zeromq32", zmq, os = :Darwin)
 end
