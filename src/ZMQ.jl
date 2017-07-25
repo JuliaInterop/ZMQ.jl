@@ -4,20 +4,11 @@ __precompile__(true)
 
 module ZMQ
 using Compat
-import Compat: String, unsafe_string
-import Base.unsafe_convert
+import Base: unsafe_convert, unsafe_string
 using Base.Libdl, Base.Libc
 using Base.Libdl: dlopen_e
 using Base.Libc: EAGAIN
-
-if VERSION >= v"0.5.0-dev+1229"
-    import Base.Filesystem: UV_READABLE, uv_pollcb
-else
-    import Base: UV_READABLE
-    if isdefined(Base, :uv_pollcb)
-        import Base: uv_pollcb
-    end
-end
+import Base.Filesystem: UV_READABLE, uv_pollcb
 
 const depfile = joinpath(dirname(@__FILE__),"..","deps","deps.jl")
 if isfile(depfile)
@@ -63,25 +54,10 @@ function jl_zmq_error_str()
     end
 end
 
-if VERSION >= v"0.5-" && isdefined(Base, :Filesystem)
-    if is_windows()
-        using Base.Libc: WindowsRawSocket
-    end
-    const _FDWatcher = Base.Filesystem._FDWatcher
-    const _have_good_fdwatcher = true
-elseif VERSION >= v"0.4-" && isdefined(Base, :_FDWatcher)
-    if is_windows()
-        using Base.Libc: WindowsRawSocket
-    end
-    const _FDWatcher = Base._FDWatcher
-    const _have_good_fdwatcher = true
-else
-    if is_windows()
-        using Base: WindowsRawSocket
-    end
-    const _FDWatcher = Base.FDWatcher
-    const _have_good_fdwatcher = false
+if Compat.Sys.iswindows()
+    using Base.Libc: WindowsRawSocket
 end
+const _FDWatcher = Base.Filesystem._FDWatcher
 
 ## Sockets ##
 type Socket
@@ -95,11 +71,7 @@ type Socket
             throw(StateError(jl_zmq_error_str()))
         end
         socket = new(p)
-        if _have_good_fdwatcher
-            socket.pollfd = _FDWatcher(fd(socket), #=readable=#true, #=writable=#false)
-        else
-            socket.pollfd = _FDWatcher(fd(socket))
-        end
+        socket.pollfd = _FDWatcher(fd(socket), #=readable=#true, #=writable=#false)
         finalizer(socket, close)
         push!(ctx.sockets, socket)
         return socket
@@ -110,12 +82,7 @@ function close(socket::Socket)
     if socket.data != C_NULL
         data = socket.data
         socket.data = C_NULL
-        if _have_good_fdwatcher
-            close(socket.pollfd, #=readable=#true, #=writable=#false)
-        else
-            notify(socket.pollfd.notify)
-            Base.stop_watching(socket.pollfd)
-        end
+        close(socket.pollfd, #=readable=#true, #=writable=#false)
         rc = ccall((:zmq_close, zmq), Cint,  (Ptr{Void},), data)
         if rc != 0
             throw(StateError(jl_zmq_error_str()))
@@ -210,7 +177,7 @@ for (fset, fget, k, p) in [
     (:set_tcp_keepalive_intvl,     :get_tcp_keepalive_intvl,     37,   ip)
     (:set_rcvtimeo,                :get_rcvtimeo,                27,   ip)
     (:set_sndtimeo,                :get_sndtimeo,                28,   ip)
-    (nothing,                      :get_fd,                      14, is_windows() ? pp : ip)
+    (nothing,                      :get_fd,                      14, Compat.Sys.iswindows() ? pp : ip)
     ]
     if fset != nothing
         @eval function ($fset)(socket::Socket, option_val::Integer)
@@ -232,20 +199,20 @@ for (fset, fget, k, p) in [
             if rc != 0
                 throw(StateError(jl_zmq_error_str()))
             end
-            return @compat Int(($p)[1])
+            return Int(($p)[1])
         end
     end
 end
 
 # For some functions, the publicly-visible versions should require &
 # return boolean:
-get_rcvmore(socket::Socket) = @compat Bool(_zmq_getsockopt_rcvmore(socket))
+get_rcvmore(socket::Socket) = Bool(_zmq_getsockopt_rcvmore(socket))
 # And a convenience function
 ismore(socket::Socket) = get_rcvmore(socket)
 
 # subscribe/unsubscribe options take an arbitrary byte array
 for (f,k) in ((:subscribe,6), (:unsubscribe,7))
-    f_ = @compat Symbol(string(f, "_"))
+    f_ = Symbol(f, "_")
     @eval begin
         function $f_{T}(socket::Socket, filter::Ptr{T}, len::Integer)
             rc = ccall((:zmq_setsockopt, zmq), Cint,
@@ -255,29 +222,22 @@ for (f,k) in ((:subscribe,6), (:unsubscribe,7))
                 throw(StateError(jl_zmq_error_str()))
             end
         end
-        @compat $f(socket::Socket, filter::Union{Array,AbstractString}) =
+        $f(socket::Socket, filter::Union{Array,AbstractString}) =
             $f_(socket, pointer(filter), sizeof(filter))
         $f(socket::Socket) = $f_(socket, C_NULL, 0)
     end
 end
 
 # Raw FD access
-if is_unix()
+if Compat.Sys.isunix()
     fd(socket::Socket) = RawFD(get_fd(socket))
 end
-if is_windows()
+if Compat.Sys.iswindows()
     fd(socket::Socket) = WindowsRawSocket(convert(Ptr{Void}, get_fd(socket)))
 end
 
-if _have_good_fdwatcher
-    wait(socket::Socket) = wait(socket.pollfd, readable=true, writable=false)
-    notify(socket::Socket) = uv_pollcb(socket.pollfd.handle, Int32(0),
-                                       Int32(UV_READABLE))
-else
-    wait(socket::Socket) = Base._wait(socket.pollfd, #=readable=#true, #=writable=#false)
-    notify(socket::Socket) = Base._uv_hook_pollcb(socket.pollfd, int32(0),
-                                                  int32(UV_READABLE))
-end
+wait(socket::Socket) = wait(socket.pollfd, readable=true, writable=false)
+notify(socket::Socket) = uv_pollcb(socket.pollfd.handle, Int32(0), Int32(UV_READABLE))
 
 # Socket options of string type
 const u8ap = zeros(UInt8, 255)
@@ -310,7 +270,7 @@ for (fset, fget, k) in [
             if rc != 0
                 throw(StateError(jl_zmq_error_str()))
             end
-            return unsafe_string(unsafe_convert(Ptr{UInt8}, $u8ap), @compat Int(($sz)[1]))
+            return unsafe_string(unsafe_convert(Ptr{UInt8}, $u8ap), Int(($sz)[1]))
         end
     end
 end
@@ -341,7 +301,7 @@ close_handle(work) = Base.close(work)
 gc_protect_cb(work) = (pop!(gc_protect, work.handle, nothing); close_handle(work))
 
 function gc_protect_handle(obj::Any)
-    work = Compat.AsyncCondition(gc_protect_cb)
+    work = Base.AsyncCondition(gc_protect_cb)
     gc_protect[work.handle] = (work,obj)
     work.handle
 end
@@ -419,7 +379,7 @@ isfreed(m::Message) = haskey(gc_protect, m.handle)
 
 # AbstractArray behaviors:
 similar(a::Message, T, dims::Dims) = Array{T}(dims) # ?
-length(zmsg::Message) = @compat Int(ccall((:zmq_msg_size, zmq), Csize_t, (Ptr{Message},), &zmsg))
+length(zmsg::Message) = Int(ccall((:zmq_msg_size, zmq), Csize_t, (Ptr{Message},), &zmsg))
 size(zmsg::Message) = (length(zmsg),)
 unsafe_convert(::Type{Ptr{UInt8}}, zmsg::Message) = ccall((:zmq_msg_data, zmq), Ptr{UInt8}, (Ptr{Message},), &zmsg)
 function getindex(a::Message, i::Integer)
@@ -436,15 +396,7 @@ function setindex!(a::Message, v, i::Integer)
 end
 
 # Convert message to string (copies data)
-unsafe_string(zmsg::Message) = Compat.unsafe_string(pointer(zmsg), length(zmsg))
-if isdefined(Base, :bytestring)
-    import Base: bytestring
-    if VERSION < v"0.5-dev+4341"
-        bytestring(zmsg::Message) = unsafe_string(zmsg)
-    else
-        @deprecate bytestring(zmsg::Message) unsafe_string(zmsg::Message)
-    end
-end
+unsafe_string(zmsg::Message) = unsafe_string(pointer(zmsg), length(zmsg))
 
 # Build an IOStream from a message
 # Copies the data
