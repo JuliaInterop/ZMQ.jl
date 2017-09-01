@@ -450,7 +450,10 @@ function send(socket::Socket, zmsg::Message, SNDMORE::Bool=false)
                 wait(socket)
             end
         else
-            get_events(socket) != 0 && notify(socket)
+            notify_is_expensive = !isempty(socket.pollfd.notify.waitq)
+            if notify_is_expensive
+                get_events(socket) != 0 && notify(socket)
+            end
             break
         end
     end
@@ -482,7 +485,10 @@ function recv(socket::Socket)
                 wait(socket)
             end
         else
-            get_events(socket) != 0 && notify(socket)
+            notify_is_expensive = !isempty(socket.pollfd.notify.waitq)
+            if notify_is_expensive
+                get_events(socket) != 0 && notify(socket)
+            end
             break
         end
     end
