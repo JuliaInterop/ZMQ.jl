@@ -324,7 +324,8 @@ type Message <: AbstractArray{UInt8,1}
     function Message()
         zmsg = new()
         zmsg.handle = C_NULL
-        rc = ccall((:zmq_msg_init, zmq), Cint, (Ptr{Message},), &zmsg)
+        # TODO: change `Any` to `Ref{Message}` when 0.6 support is dropped.
+        rc = ccall((:zmq_msg_init, zmq), Cint, (Any,), zmsg)
         if rc != 0
             throw(StateError(jl_zmq_error_str()))
         end
@@ -335,7 +336,8 @@ type Message <: AbstractArray{UInt8,1}
     function Message(len::Integer)
         zmsg = new()
         zmsg.handle = C_NULL
-        rc = ccall((:zmq_msg_init_size, zmq), Cint, (Ptr{Message}, Csize_t), &zmsg, len)
+        # TODO: change `Any` to `Ref{Message}` when 0.6 support is dropped.
+        rc = ccall((:zmq_msg_init_size, zmq), Cint, (Any, Csize_t), zmsg, len)
         if rc != 0
             throw(StateError(jl_zmq_error_str()))
         end
@@ -350,7 +352,9 @@ type Message <: AbstractArray{UInt8,1}
     function Message{T}(origin::Any, m::Ptr{T}, len::Integer)
         zmsg = new()
         zmsg.handle = gc_protect_handle(origin)
-        rc = ccall((:zmq_msg_init_data, zmq), Cint, (Ptr{Message}, Ptr{T}, Csize_t, Ptr{Void}, Ptr{Void}), &zmsg, m, len, gc_free_fn_c::Ptr{Void}, zmsg.handle)
+        # TODO: change `Any` to `Ref{Message}` when 0.6 support is dropped.
+        rc = ccall((:zmq_msg_init_data, zmq), Cint, (Any, Ptr{T}, Csize_t, Ptr{Void}, Ptr{Void}),
+                   zmsg, m, len, gc_free_fn_c[], zmsg.handle)
         if rc != 0
             throw(StateError(jl_zmq_error_str()))
         end
@@ -379,9 +383,11 @@ isfreed(m::Message) = haskey(gc_protect, m.handle)
 
 # AbstractArray behaviors:
 similar(a::Message, T, dims::Dims) = Array{T}(dims) # ?
-length(zmsg::Message) = Int(ccall((:zmq_msg_size, zmq), Csize_t, (Ptr{Message},), &zmsg))
+# TODO: change `Any` to `Ref{Message}` when 0.6 support is dropped.
+length(zmsg::Message) = Int(ccall((:zmq_msg_size, zmq), Csize_t, (Any,), zmsg))
 size(zmsg::Message) = (length(zmsg),)
-unsafe_convert(::Type{Ptr{UInt8}}, zmsg::Message) = ccall((:zmq_msg_data, zmq), Ptr{UInt8}, (Ptr{Message},), &zmsg)
+# TODO: change `Any` to `Ref{Message}` when 0.6 support is dropped.
+unsafe_convert(::Type{Ptr{UInt8}}, zmsg::Message) = ccall((:zmq_msg_data, zmq), Ptr{UInt8}, (Any,), zmsg)
 function getindex(a::Message, i::Integer)
     if i < 1 || i > length(a)
         throw(BoundsError())
@@ -408,21 +414,24 @@ end
 # Close a message. You should not need to call this manually (let the
 # finalizer do it).
 function close(zmsg::Message)
-    rc = ccall((:zmq_msg_close, zmq), Cint, (Ptr{Message},), &zmsg)
+    # TODO: change `Any` to `Ref{Message}` when 0.6 support is dropped.
+    rc = ccall((:zmq_msg_close, zmq), Cint, (Any,), zmsg)
     if rc != 0
         throw(StateError(jl_zmq_error_str()))
     end
 end
 
 function get(zmsg::Message, property::Integer)
-    val = ccall((:zmq_msg_get, zmq), Cint, (Ptr{Message}, Cint), &zmsg, property)
+    # TODO: change `Any` to `Ref{Message}` when 0.6 support is dropped.
+    val = ccall((:zmq_msg_get, zmq), Cint, (Any, Cint), zmsg, property)
     if val < 0
         throw(StateError(jl_zmq_error_str()))
     end
     val
 end
 function set(zmsg::Message, property::Integer, value::Integer)
-    rc = ccall((:zmq_msg_set, zmq), Cint, (Ptr{Message}, Cint, Cint), &zmsg, property, value)
+    # TODO: change `Any` to `Ref{Message}` when 0.6 support is dropped.
+    rc = ccall((:zmq_msg_set, zmq), Cint, (Any, Cint, Cint), zmsg, property, value)
     if rc < 0
         throw(StateError(jl_zmq_error_str()))
     end
@@ -442,8 +451,9 @@ const ZMQ_SNDMORE = 2
 
 function send(socket::Socket, zmsg::Message, SNDMORE::Bool=false)
     while true
-        rc = ccall((:zmq_msg_send, zmq), Cint, (Ptr{Message}, Ptr{Void}, Cint),
-                    &zmsg, socket.data, (ZMQ_SNDMORE*SNDMORE) | ZMQ_DONTWAIT)
+        # TODO: change `Any` to `Ref{Message}` when 0.6 support is dropped.
+        rc = ccall((:zmq_msg_send, zmq), Cint, (Any, Ptr{Void}, Cint),
+                    zmsg, socket.data, (ZMQ_SNDMORE*SNDMORE) | ZMQ_DONTWAIT)
         if rc == -1
             zmq_errno() == EAGAIN || throw(StateError(jl_zmq_error_str()))
             while (get_events(socket) & POLLOUT) == 0
@@ -477,8 +487,9 @@ function recv(socket::Socket)
     zmsg = Message()
     rc = -1
     while true
-        rc = ccall((:zmq_msg_recv, zmq), Cint, (Ptr{Message}, Ptr{Void}, Cint),
-                    &zmsg, socket.data, ZMQ_DONTWAIT)
+        # TODO: change `Any` to `Ref{Message}` when 0.6 support is dropped.
+        rc = ccall((:zmq_msg_recv, zmq), Cint, (Any, Ptr{Void}, Cint),
+                    zmsg, socket.data, ZMQ_DONTWAIT)
         if rc == -1
             zmq_errno() == EAGAIN || throw(StateError(jl_zmq_error_str()))
             while (get_events(socket) & POLLIN) == 0
@@ -531,6 +542,8 @@ const STREAMER = 1
 const FORWARDER = 2
 const QUEUE = 3
 
+const gc_free_fn_c = Ref{Ptr{Void}}()
+
 function __init__()
     major = Ref{Cint}()
     minor = Ref{Cint}()
@@ -540,7 +553,7 @@ function __init__()
     if version < v"3"
         error("ZMQ version $version < 3 is not supported")
     end
-    global const gc_free_fn_c = cfunction(gc_free_fn, Cint, (Ptr{Void}, Ptr{Void}))
+    gc_free_fn_c[] = cfunction(gc_free_fn, Cint, Tuple{Ptr{Void}, Ptr{Void}})
 end
 
 end
