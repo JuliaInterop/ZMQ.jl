@@ -23,6 +23,7 @@ provides(BuildProcess, Autotools(libtarget = "src/.libs/libzmq." * Libdl.dlext),
 
 provides(AptGet, "libzmq3", zmq, os = :Linux)
 provides(Yum, "czmq", zmq, os = :Linux)
+provides(Pacman, "zeromq", zmq, os = :Linux)
 
 if Compat.Sys.iswindows()
     using WinRPM
