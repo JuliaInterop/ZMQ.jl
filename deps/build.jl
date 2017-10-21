@@ -30,7 +30,7 @@ if Compat.Sys.iswindows()
     provides(WinRPM.RPM, "zeromq", [zmq], os = :Windows)
 elseif Compat.Sys.isapple()
     using Homebrew
-    provides(Homebrew.HB, "staticfloat/juliadeps/zeromq32", zmq, os = :Darwin)
+    provides(Homebrew.HB, "zeromq@3.2", zmq, os = :Darwin)
 end
 
 @BinDeps.install Dict(:zmq => :zmq)
