@@ -15,10 +15,6 @@ s=Socket(ctx2, PUB)
 @test typeof(s) == Socket
 ZMQ.close(s)
 
-#trying to close already closed socket
-#this is broken
-#@test_throws StateError ZMQ.close(s)
-
 s1=Socket(ctx2, REP)
 ZMQ.set_sndhwm(s1, 1000)
 ZMQ.set_linger(s1, 1)
