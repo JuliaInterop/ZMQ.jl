@@ -14,7 +14,12 @@ ctx2=Context()
 s=Socket(ctx2, PUB)
 @test typeof(s) == Socket
 ZMQ.close(s)
-
+try
+ 	ZMQ.close(s)
+	error()
+ catch ex
+ 	@test_broken typeof(ex) == StateError
+ end
 s1=Socket(ctx2, REP)
 ZMQ.set_sndhwm(s1, 1000)
 ZMQ.set_linger(s1, 1)
