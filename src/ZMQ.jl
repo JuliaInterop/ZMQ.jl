@@ -8,7 +8,11 @@ import Base: unsafe_convert, unsafe_string
 using Base.Libdl, Base.Libc
 using Base.Libdl: dlopen_e
 using Base.Libc: EAGAIN
-import Base.Filesystem: UV_READABLE, uv_pollcb
+@static if VERSION < v"0.7.0-DEV.2359"
+    import Base.Filesystem: UV_READABLE, uv_pollcb, _FDWatcher
+else
+    import FileWatching: UV_READABLE, uv_pollcb, _FDWatcher
+end
 
 const depfile = joinpath(dirname(@__FILE__),"..","deps","deps.jl")
 if isfile(depfile)
@@ -57,7 +61,6 @@ end
 if Compat.Sys.iswindows()
     using Base.Libc: WindowsRawSocket
 end
-const _FDWatcher = Base.Filesystem._FDWatcher
 
 ## Sockets ##
 type Socket
