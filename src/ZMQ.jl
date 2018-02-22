@@ -385,7 +385,7 @@ end
 isfreed(m::Message) = haskey(gc_protect, m.handle)
 
 # AbstractArray behaviors:
-similar(a::Message, T, dims::Dims) = Array{T}(dims) # ?
+similar(a::Message, ::Type{T}, dims::Dims) where {T} = Array{T}(dims) # ?
 # TODO: change `Any` to `Ref{Message}` when 0.6 support is dropped.
 length(zmsg::Message) = Int(ccall((:zmq_msg_size, zmq), Csize_t, (Any,), zmsg))
 size(zmsg::Message) = (length(zmsg),)
