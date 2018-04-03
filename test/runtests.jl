@@ -48,7 +48,13 @@ s2=Socket(ctx2, REQ)
 ZMQ.bind(s1, "tcp://*:5555")
 ZMQ.connect(s2, "tcp://localhost:5555")
 
-ZMQ.send(s2, Message("test request"))
+msg = Message("test request")
+# Test similar() and copy() fixes in https://github.com/JuliaInterop/ZMQ.jl/pull/165
+# Note that we have to send this message to work around
+# https://github.com/JuliaInterop/ZMQ.jl/issues/166
+@assert similar(msg, UInt8, 12) isa Vector{UInt8}
+@assert copy(msg) == convert(Vector{UInt8}, "test request")
+ZMQ.send(s2, msg)
 @assert (unsafe_string(ZMQ.recv(s1)) == "test request")
 ZMQ.send(s1, Message("test response"))
 @assert (unsafe_string(ZMQ.recv(s2)) == "test response")
