@@ -14,12 +14,11 @@ else
     import FileWatching: UV_READABLE, uv_pollcb, _FDWatcher
 end
 
-const depfile = joinpath(dirname(@__FILE__),"..","deps","deps.jl")
-if isfile(depfile)
-    include(depfile)
-else
-    error("ZMQ not properly installed. Please run Pkg.build(\"ZMQ\")")
+const depsjl_path = joinpath(dirname(@__FILE__), "..", "deps", "deps.jl")
+if !isfile(depsjl_path)
+    error("Blosc not installed properly, run Pkg.build(\"ZMQ\"), restart Julia and try again")
 end
+include(depsjl_path)
 
 import Base:
     convert, get,
@@ -46,10 +45,10 @@ end
 show(io, thiserr::StateError) = print(io, "ZMQ: ", thiserr.msg)
 
 # Basic functions
-zmq_errno() = ccall((:zmq_errno, zmq), Cint, ())
+zmq_errno() = ccall((:zmq_errno, libzmq), Cint, ())
 function jl_zmq_error_str()
     errno = zmq_errno()
-    c_strerror = ccall((:zmq_strerror, zmq), Ptr{UInt8}, (Cint,), errno)
+    c_strerror = ccall((:zmq_strerror, libzmq), Ptr{UInt8}, (Cint,), errno)
     if c_strerror != C_NULL
         strerror = unsafe_string(c_strerror)
         return strerror
@@ -69,7 +68,7 @@ mutable struct Socket
 
     # ctx should be ::Context, but forward type references are not allowed
     function Socket(ctx, typ::Integer)
-        p = ccall((:zmq_socket, zmq), Ptr{Cvoid}, (Ptr{Cvoid}, Cint), ctx.data, typ)
+        p = ccall((:zmq_socket, libzmq), Ptr{Cvoid}, (Ptr{Cvoid}, Cint), ctx.data, typ)
         if p == C_NULL
             throw(StateError(jl_zmq_error_str()))
         end
@@ -86,7 +85,7 @@ function close(socket::Socket)
         data = socket.data
         socket.data = C_NULL
         close(socket.pollfd, #=readable=#true, #=writable=#false)
-        rc = ccall((:zmq_close, zmq), Cint,  (Ptr{Cvoid},), data)
+        rc = ccall((:zmq_close, libzmq), Cint,  (Ptr{Cvoid},), data)
         if rc != 0
             throw(StateError(jl_zmq_error_str()))
         end
@@ -105,7 +104,7 @@ mutable struct Context
     sockets::Vector{Socket}
 
     function Context()
-        p = ccall((:zmq_ctx_new, zmq), Ptr{Cvoid},  ())
+        p = ccall((:zmq_ctx_new, libzmq), Ptr{Cvoid},  ())
         if p == C_NULL
             throw(StateError(jl_zmq_error_str()))
         end
@@ -124,7 +123,7 @@ function close(ctx::Context)
         for s in ctx.sockets
             close(s)
         end
-        rc = ccall((:zmq_ctx_destroy, zmq), Cint,  (Ptr{Cvoid},), data)
+        rc = ccall((:zmq_ctx_destroy, libzmq), Cint,  (Ptr{Cvoid},), data)
         if rc != 0
             throw(StateError(jl_zmq_error_str()))
         end
@@ -133,7 +132,7 @@ end
 term(ctx::Context) = close(ctx)
 
 function get(ctx::Context, option::Integer)
-    val = ccall((:zmq_ctx_get, zmq), Cint, (Ptr{Cvoid}, Cint), ctx.data, option)
+    val = ccall((:zmq_ctx_get, libzmq), Cint, (Ptr{Cvoid}, Cint), ctx.data, option)
     if val < 0
         throw(StateError(jl_zmq_error_str()))
     end
@@ -141,7 +140,7 @@ function get(ctx::Context, option::Integer)
 end
 
 function set(ctx::Context, option::Integer, value::Integer)
-    rc = ccall((:zmq_ctx_set, zmq), Cint, (Ptr{Cvoid}, Cint, Cint), ctx.data, option, value)
+    rc = ccall((:zmq_ctx_set, libzmq), Cint, (Ptr{Cvoid}, Cint, Cint), ctx.data, option, value)
     if rc != 0
         throw(StateError(jl_zmq_error_str()))
     end
@@ -185,7 +184,7 @@ for (fset, fget, k, p) in [
     if fset != nothing
         @eval function ($fset)(socket::Socket, option_val::Integer)
             ($p)[1] = option_val
-            rc = ccall((:zmq_setsockopt, zmq), Cint,
+            rc = ccall((:zmq_setsockopt, libzmq), Cint,
                        (Ptr{Cvoid}, Cint, Ptr{Cvoid}, UInt),
                        socket.data, $k, $p, sizeof(eltype($p)))
             if rc != 0
@@ -196,7 +195,7 @@ for (fset, fget, k, p) in [
     if fget != nothing
         @eval function ($fget)(socket::Socket)
             ($sz)[1] = sizeof(eltype($p))
-            rc = ccall((:zmq_getsockopt, zmq), Cint,
+            rc = ccall((:zmq_getsockopt, libzmq), Cint,
                        (Ptr{Cvoid}, Cint, Ptr{Cvoid}, Ptr{UInt}),
                        socket.data, $k, $p, $sz)
             if rc != 0
@@ -218,7 +217,7 @@ for (f,k) in ((:subscribe,6), (:unsubscribe,7))
     f_ = Symbol(f, "_")
     @eval begin
         function $f_(socket::Socket, filter::Ptr{T}, len::Integer) where {T}
-            rc = ccall((:zmq_setsockopt, zmq), Cint,
+            rc = ccall((:zmq_setsockopt, libzmq), Cint,
                        (Ptr{Cvoid}, Cint, Ptr{T}, UInt),
                        socket.data, $k, filter, len)
             if rc != 0
@@ -256,7 +255,7 @@ for (fset, fget, k) in [
             if length(option_val) > 255
                 throw(StateError("option value too large"))
             end
-            rc = ccall((:zmq_setsockopt, zmq), Cint,
+            rc = ccall((:zmq_setsockopt, libzmq), Cint,
                        (Ptr{Cvoid}, Cint, Ptr{UInt8}, UInt),
                        socket.data, $k, option_val, length(option_val))
             if rc != 0
@@ -267,7 +266,7 @@ for (fset, fget, k) in [
     if fget != nothing
         @eval function ($fget)(socket::Socket)
             ($sz)[1] = length($u8ap)
-            rc = ccall((:zmq_getsockopt, zmq), Cint,
+            rc = ccall((:zmq_getsockopt, libzmq), Cint,
                        (Ptr{Cvoid}, Cint, Ptr{UInt8}, Ptr{UInt}),
                        socket.data, $k, $u8ap, $sz)
             if rc != 0
@@ -279,14 +278,14 @@ for (fset, fget, k) in [
 end
 
 function bind(socket::Socket, endpoint::AbstractString)
-    rc = ccall((:zmq_bind, zmq), Cint, (Ptr{Cvoid}, Ptr{UInt8}), socket.data, endpoint)
+    rc = ccall((:zmq_bind, libzmq), Cint, (Ptr{Cvoid}, Ptr{UInt8}), socket.data, endpoint)
     if rc != 0
         throw(StateError(jl_zmq_error_str()))
     end
 end
 
 function connect(socket::Socket, endpoint::AbstractString)
-    rc=ccall((:zmq_connect, zmq), Cint, (Ptr{Cvoid}, Ptr{UInt8}), socket.data, endpoint)
+    rc=ccall((:zmq_connect, libzmq), Cint, (Ptr{Cvoid}, Ptr{UInt8}), socket.data, endpoint)
     if rc != 0
         throw(StateError(jl_zmq_error_str()))
     end
@@ -328,7 +327,7 @@ mutable struct Message <: AbstractArray{UInt8,1}
         zmsg = new()
         zmsg.handle = C_NULL
         # TODO: change `Any` to `Ref{Message}` when 0.6 support is dropped.
-        rc = ccall((:zmq_msg_init, zmq), Cint, (Any,), zmsg)
+        rc = ccall((:zmq_msg_init, libzmq), Cint, (Any,), zmsg)
         if rc != 0
             throw(StateError(jl_zmq_error_str()))
         end
@@ -340,7 +339,7 @@ mutable struct Message <: AbstractArray{UInt8,1}
         zmsg = new()
         zmsg.handle = C_NULL
         # TODO: change `Any` to `Ref{Message}` when 0.6 support is dropped.
-        rc = ccall((:zmq_msg_init_size, zmq), Cint, (Any, Csize_t), zmsg, len)
+        rc = ccall((:zmq_msg_init_size, libzmq), Cint, (Any, Csize_t), zmsg, len)
         if rc != 0
             throw(StateError(jl_zmq_error_str()))
         end
@@ -356,7 +355,7 @@ mutable struct Message <: AbstractArray{UInt8,1}
         zmsg = new()
         zmsg.handle = gc_protect_handle(origin)
         # TODO: change `Any` to `Ref{Message}` when 0.6 support is dropped.
-        rc = ccall((:zmq_msg_init_data, zmq), Cint, (Any, Ptr{T}, Csize_t, Ptr{Cvoid}, Ptr{Cvoid}),
+        rc = ccall((:zmq_msg_init_data, libzmq), Cint, (Any, Ptr{T}, Csize_t, Ptr{Cvoid}, Ptr{Cvoid}),
                    zmsg, m, len, gc_free_fn_c[], zmsg.handle)
         if rc != 0
             throw(StateError(jl_zmq_error_str()))
@@ -387,10 +386,10 @@ isfreed(m::Message) = haskey(gc_protect, m.handle)
 # AbstractArray behaviors:
 similar(a::Message, ::Type{T}, dims::Dims) where {T} = Array{T}(dims) # ?
 # TODO: change `Any` to `Ref{Message}` when 0.6 support is dropped.
-length(zmsg::Message) = Int(ccall((:zmq_msg_size, zmq), Csize_t, (Any,), zmsg))
+length(zmsg::Message) = Int(ccall((:zmq_msg_size, libzmq), Csize_t, (Any,), zmsg))
 size(zmsg::Message) = (length(zmsg),)
 # TODO: change `Any` to `Ref{Message}` when 0.6 support is dropped.
-unsafe_convert(::Type{Ptr{UInt8}}, zmsg::Message) = ccall((:zmq_msg_data, zmq), Ptr{UInt8}, (Any,), zmsg)
+unsafe_convert(::Type{Ptr{UInt8}}, zmsg::Message) = ccall((:zmq_msg_data, libzmq), Ptr{UInt8}, (Any,), zmsg)
 function getindex(a::Message, i::Integer)
     if i < 1 || i > length(a)
         throw(BoundsError())
@@ -418,7 +417,7 @@ end
 # finalizer do it).
 function close(zmsg::Message)
     # TODO: change `Any` to `Ref{Message}` when 0.6 support is dropped.
-    rc = ccall((:zmq_msg_close, zmq), Cint, (Any,), zmsg)
+    rc = ccall((:zmq_msg_close, libzmq), Cint, (Any,), zmsg)
     if rc != 0
         throw(StateError(jl_zmq_error_str()))
     end
@@ -426,7 +425,7 @@ end
 
 function get(zmsg::Message, property::Integer)
     # TODO: change `Any` to `Ref{Message}` when 0.6 support is dropped.
-    val = ccall((:zmq_msg_get, zmq), Cint, (Any, Cint), zmsg, property)
+    val = ccall((:zmq_msg_get, libzmq), Cint, (Any, Cint), zmsg, property)
     if val < 0
         throw(StateError(jl_zmq_error_str()))
     end
@@ -434,7 +433,7 @@ function get(zmsg::Message, property::Integer)
 end
 function set(zmsg::Message, property::Integer, value::Integer)
     # TODO: change `Any` to `Ref{Message}` when 0.6 support is dropped.
-    rc = ccall((:zmq_msg_set, zmq), Cint, (Any, Cint, Cint), zmsg, property, value)
+    rc = ccall((:zmq_msg_set, libzmq), Cint, (Any, Cint, Cint), zmsg, property, value)
     if rc < 0
         throw(StateError(jl_zmq_error_str()))
     end
@@ -455,7 +454,7 @@ const ZMQ_SNDMORE = 2
 function send(socket::Socket, zmsg::Message, SNDMORE::Bool=false)
     while true
         # TODO: change `Any` to `Ref{Message}` when 0.6 support is dropped.
-        rc = ccall((:zmq_msg_send, zmq), Cint, (Any, Ptr{Cvoid}, Cint),
+        rc = ccall((:zmq_msg_send, libzmq), Cint, (Any, Ptr{Cvoid}, Cint),
                     zmsg, socket.data, (ZMQ_SNDMORE*SNDMORE) | ZMQ_DONTWAIT)
         if rc == -1
             zmq_errno() == EAGAIN || throw(StateError(jl_zmq_error_str()))
@@ -491,7 +490,7 @@ function recv(socket::Socket)
     rc = -1
     while true
         # TODO: change `Any` to `Ref{Message}` when 0.6 support is dropped.
-        rc = ccall((:zmq_msg_recv, zmq), Cint, (Any, Ptr{Cvoid}, Cint),
+        rc = ccall((:zmq_msg_recv, libzmq), Cint, (Any, Ptr{Cvoid}, Cint),
                     zmsg, socket.data, ZMQ_DONTWAIT)
         if rc == -1
             zmq_errno() == EAGAIN || throw(StateError(jl_zmq_error_str()))
@@ -548,10 +547,11 @@ const QUEUE = 3
 const gc_free_fn_c = Ref{Ptr{Cvoid}}()
 
 function __init__()
+    check_deps()
     major = Ref{Cint}()
     minor = Ref{Cint}()
     patch = Ref{Cint}()
-    ccall((:zmq_version, zmq), Cvoid, (Ptr{Cint}, Ptr{Cint}, Ptr{Cint}), major, minor, patch)
+    ccall((:zmq_version, libzmq), Cvoid, (Ptr{Cint}, Ptr{Cint}, Ptr{Cint}), major, minor, patch)
     global version = VersionNumber(major[], minor[], patch[])
     if version < v"3"
         error("ZMQ version $version < 3 is not supported")
