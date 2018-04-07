@@ -5,7 +5,7 @@ Compat.@info("Testing with ZMQ version $(ZMQ.version)")
 
 @testset "ZMQ sockets" begin
 	ctx=Context()
-	@test typeof(ctx) == Context
+	@test ctx isa Context
 	ZMQ.close(ctx)
 
 	#try to create socket with expired context
@@ -13,7 +13,7 @@ Compat.@info("Testing with ZMQ version $(ZMQ.version)")
 
 	ctx2=Context()
 	s=Socket(ctx2, PUB)
-	@test typeof(s) == Socket
+	@test s isa Socket
 	ZMQ.close(s)
 
 	s1=Socket(ctx2, REP)
