@@ -1,84 +1,78 @@
 using ZMQ, Compat
-using Base.Test
+using Compat.Test
 
-println("Testing with ZMQ version $(ZMQ.version)")
-@testset "socket interface" begin
-ctx=Context()
-@test typeof(ctx) == Context
-ZMQ.close(ctx)
+Compat.@info("Testing with ZMQ version $(ZMQ.version)")
 
-#try to create socket with expired context
-@test_throws StateError Socket(ctx, PUB)
+@testset "ZMQ sockets" begin
+	ctx=Context()
+	@test typeof(ctx) == Context
+	ZMQ.close(ctx)
 
-ctx2=Context()
-s=Socket(ctx2, PUB)
-@test typeof(s) == Socket
-ZMQ.close(s)
-try
- 	ZMQ.close(s)
-	error()
- catch ex
- 	@test_broken typeof(ex) == StateError
- end
-s1=Socket(ctx2, REP)
-ZMQ.set_sndhwm(s1, 1000)
-ZMQ.set_linger(s1, 1)
-ZMQ.set_identity(s1, "abcd")
+	#try to create socket with expired context
+	@test_throws StateError Socket(ctx, PUB)
 
-@test ZMQ.get_identity(s1)::AbstractString == "abcd"
-@test ZMQ.get_sndhwm(s1)::Integer == 1000
-@test ZMQ.get_linger(s1)::Integer == 1
-@test ZMQ.ismore(s1) == false
+	ctx2=Context()
+	s=Socket(ctx2, PUB)
+	@test typeof(s) == Socket
+	ZMQ.close(s)
 
-s2=Socket(ctx2, REQ)
-@test ZMQ.get_type(s1) == REP
-@test ZMQ.get_type(s2) == REQ
+	s1=Socket(ctx2, REP)
+	ZMQ.set_sndhwm(s1, 1000)
+	ZMQ.set_linger(s1, 1)
+	ZMQ.set_identity(s1, "abcd")
 
-ZMQ.bind(s1, "tcp://*:5555")
-ZMQ.connect(s2, "tcp://localhost:5555")
+	@test ZMQ.get_identity(s1)::AbstractString == "abcd"
+	@test ZMQ.get_sndhwm(s1)::Integer == 1000
+	@test ZMQ.get_linger(s1)::Integer == 1
+	@test ZMQ.ismore(s1) == false
 
-msg = Message("test request")
-# Test similar() and copy() fixes in https://github.com/JuliaInterop/ZMQ.jl/pull/165
-# Note that we have to send this message to work around
-# https://github.com/JuliaInterop/ZMQ.jl/issues/166
-@test similar(msg, UInt8, 12) isa Vector{UInt8}
-@test copy(msg) == Vector{UInt8}("test request")
-ZMQ.send(s2, msg)
-@test unsafe_string(ZMQ.recv(s1)) == "test request"
-ZMQ.send(s1, Message("test response"))
-@test unsafe_string(ZMQ.recv(s2)) == "test response"
+	s2=Socket(ctx2, REQ)
+	@test ZMQ.get_type(s1) == REP
+	@test ZMQ.get_type(s2) == REQ
 
+	ZMQ.bind(s1, "tcp://*:5555")
+	ZMQ.connect(s2, "tcp://localhost:5555")
 
-# Test task-blocking behavior
-c = Base.Condition()
-global msg_sent = false
-@async begin
-	global msg_sent
-	sleep(0.5)
-	msg_sent = true
-	ZMQ.send(s2, Message("test request"))
-	@test (unsafe_string(ZMQ.recv(s2)) == "test response")
-	notify(c)
+	msg = Message("test request")
+	# Test similar() and copy() fixes in https://github.com/JuliaInterop/ZMQ.jl/pull/165
+	# Note that we have to send this message to work around
+	# https://github.com/JuliaInterop/ZMQ.jl/issues/166
+	@test similar(msg, UInt8, 12) isa Vector{UInt8}
+	@test copy(msg) == Vector{UInt8}("test request")
+	ZMQ.send(s2, msg)
+	@test unsafe_string(ZMQ.recv(s1)) == "test request"
+	ZMQ.send(s1, Message("test response"))
+	@test unsafe_string(ZMQ.recv(s2)) == "test response"
+
+	# Test task-blocking behavior
+	c = Base.Condition()
+	global msg_sent = false
+	@async begin
+		global msg_sent
+		sleep(0.5)
+		msg_sent = true
+		ZMQ.send(s2, Message("test request"))
+		@test (unsafe_string(ZMQ.recv(s2)) == "test response")
+		notify(c)
+	end
+
+	# This will hang forver if ZMQ blocks the entire process since
+	# we'll never switch to the other task
+	@test unsafe_string(ZMQ.recv(s1)) == "test request"
+	@test msg_sent == true
+	ZMQ.send(s1, Message("test response"))
+	wait(c)
+
+	ZMQ.send(s2, Message("another test request"))
+	msg = ZMQ.recv(s1)
+	o=convert(IOStream, msg)
+	seek(o, 0)
+	@test String(take!(o)) == "another test request"
+
+	ZMQ.close(s1)
+	ZMQ.close(s2)
+	ZMQ.close(ctx2)
 end
-
-# This will hang forver if ZMQ blocks the entire process since
-# we'll never switch to the other task
-@test (unsafe_string(ZMQ.recv(s1)) == "test request")
-@test msg_sent == true
-ZMQ.send(s1, Message("test response"))
-wait(c)
-
-ZMQ.send(s2, Message("another test request"))
-msg = ZMQ.recv(s1)
-o=convert(IOStream, msg)
-seek(o, 0)
-@test (String(take!(o))=="another test request")
-
-ZMQ.close(s1)
-ZMQ.close(s2)
-ZMQ.close(ctx2)
-end
-
 
 @testset "Message AbstractVector interface" begin
 	m = Message("1")
