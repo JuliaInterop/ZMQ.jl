@@ -1,5 +1,3 @@
 julia 0.6
-BinDeps 0.6.0
-@osx Homebrew
 Compat 0.41.0
-@windows WinRPM
+BinaryProvider
