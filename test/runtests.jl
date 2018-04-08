@@ -69,14 +69,15 @@ Compat.@info("Testing with ZMQ version $(ZMQ.version)")
 	seek(o, 0)
 	@test String(take!(o)) == "another test request"
 
+	@testset "Message AbstractVector interface" begin
+		m = Message("1")
+		@test m[1]==0x31
+		m[1]=0x32
+		@test unsafe_string(m)=="2"
+		finalize(m)
+	end
+
 	ZMQ.close(s1)
 	ZMQ.close(s2)
 	ZMQ.close(ctx2)
-end
-
-@testset "Message AbstractVector interface" begin
-	m = Message("1")
-	@test m[1]==0x31
-	m[1]=0x32
-	@test unsafe_string(m)=="2"
 end
