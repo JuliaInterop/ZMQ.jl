@@ -75,7 +75,7 @@ mutable struct Socket
         socket = new(p)
         socket.pollfd = _FDWatcher(fd(socket), #=readable=#true, #=writable=#false)
         @compat finalizer(close, socket)
-        push!(ctx.sockets, socket)
+        push!(ctx.sockets, WeakRef(socket))
         return socket
     end
 end
@@ -99,16 +99,16 @@ end
 mutable struct Context
     data::Ptr{Cvoid}
 
-    # need to keep a list of sockets for this Context in order to
+    # need to keep a list of weakrefs to sockets for this Context in order to
     # close them before finalizing (otherwise zmq_term will hang)
-    sockets::Vector{Socket}
+    sockets::Vector{WeakRef}
 
     function Context()
         p = ccall((:zmq_ctx_new, libzmq), Ptr{Cvoid},  ())
         if p == C_NULL
             throw(StateError(jl_zmq_error_str()))
         end
-        zctx = new(p, Socket[])
+        zctx = new(p, WeakRef[])
         @compat finalizer(close, zctx)
         return zctx
     end
@@ -120,8 +120,9 @@ function close(ctx::Context)
     if ctx.data != C_NULL # don't close twice!
         data = ctx.data
         ctx.data = C_NULL
-        for s in ctx.sockets
-            close(s)
+        for w in ctx.sockets
+            s = w.value
+            s isa Socket && close(s)
         end
         rc = ccall((:zmq_ctx_destroy, libzmq), Cint,  (Ptr{Cvoid},), data)
         if rc != 0
