@@ -43,7 +43,7 @@ if haskey(download_info, platform_key()) && !forcecompile
         install(url, tarball_hash; prefix=prefix, force=true, verbose=verbose)
 
         # check again whether the dependency is satisfied, which
-        # may not be true if dlopen fails due to a libc++ incompatibility (#50)
+        # may not be true if dlopen fails due to a libc++ incompatibility (#176)
         unsatisfied = any(!satisfied(p; verbose=verbose) for p in products)
     end
 end
