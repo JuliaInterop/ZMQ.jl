@@ -53,7 +53,7 @@ if unsatisfied || forcecompile
     # so that it is not overwritten by BinaryBuilder downloads or vice-versa.
     libname = "libzmq_from_source"
     products = [ LibraryProduct(prefix, [libname], :libzmq) ]
-    source_path = joinpath(prefix, "downloads", basename(source_url))
+    source_path = joinpath(prefix, "downloads", "src.tar.gz")
     if !isfile(source_path) || !verify(source_path, source_hash; verbose=verbose) || !satisfied(products[1]; verbose=verbose)
         compile(libname, source_url, source_hash, prefix=prefix, verbose=verbose)
     end

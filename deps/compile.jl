@@ -3,7 +3,7 @@ using Compat.Libdl: dlext
 
 function compile(libname, tarball_url, hash; prefix=BinaryProvider.global_prefix, verbose=false)
     # download to tarball_path
-    tarball_path = joinpath(prefix, "downloads", basename(tarball_url))
+    tarball_path = joinpath(prefix, "downloads", "src.tar.gz")
     download_verify(tarball_url, hash, tarball_path; force=true, verbose=verbose)
 
     # unpack into source_path
