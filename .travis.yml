@@ -5,5 +5,9 @@ os:
 julia:
     - 0.6
     - nightly
+env:
+  matrix:
+    - FORCE_COMPILE_ZMQ=yes
+    - FORCE_COMPILE_ZMQ=no
 notifications:
     email: false
