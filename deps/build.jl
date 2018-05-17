@@ -1,7 +1,11 @@
 using BinaryProvider # requires BinaryProvider 0.3.0 or later
+include("compile.jl")
+
+# env var to force compilation from source, for testing purposes
+const forcecompile = get(ENV, "FORCE_COMPILE_ZMQ", "no") == "yes"
 
 # Parse some basic command-line arguments
-const verbose = "--verbose" in ARGS
+const verbose = "--verbose" in ARGS || forcecompile
 const prefix = Prefix(get([a for a in ARGS if a != "--verbose"], 1, joinpath(@__DIR__, "usr")))
 products = [
     LibraryProduct(prefix, String["libzmq"], :libzmq),
@@ -26,19 +30,33 @@ download_info = Dict(
     Windows(:x86_64) => ("$bin_prefix/ZMQ.x86_64-w64-mingw32.tar.gz", "84f8937f65015620ec56cb1ee867217edcfb6b2aec7ea41a2b1d9c32fe616925"),
 )
 
+# source code tarball and hash for fallback compilation
+source_url = "https://github.com/zeromq/libzmq/releases/download/v4.2.5/zeromq-4.2.5.tar.gz"
+source_hash = "cc9090ba35713d59bb2f7d7965f877036c49c5558ea0c290b0dcc6f2a17e489f"
+
 # Install unsatisfied or updated dependencies:
 unsatisfied = any(!satisfied(p; verbose=verbose) for p in products)
-if haskey(download_info, platform_key())
+if haskey(download_info, platform_key()) && !forcecompile
     url, tarball_hash = download_info[platform_key()]
-    if unsatisfied || !isinstalled(url, tarball_hash; prefix=prefix)
+    if !isinstalled(url, tarball_hash; prefix=prefix)
         # Download and install binaries
         install(url, tarball_hash; prefix=prefix, force=true, verbose=verbose)
+
+        # check again whether the dependency is satisfied, which
+        # may not be true if dlopen fails due to a libc++ incompatibility (#50)
+        unsatisfied = any(!satisfied(p; verbose=verbose) for p in products)
     end
-elseif unsatisfied
-    # If we don't have a BinaryProvider-compatible .tar.gz to download, complain.
-    # Alternatively, you could attempt to install from a separate provider,
-    # build from source or something even more ambitious here.
-    error("Your platform $(triplet(platform_key())) is not supported by this package!")
+end
+
+if unsatisfied || forcecompile
+    # Fall back to building from source, giving the library a different name
+    # so that it is not overwritten by BinaryBuilder downloads or vice-versa.
+    libname = "libzmq_from_source"
+    products = [ LibraryProduct(prefix, [libname], :libzmq) ]
+    source_path = joinpath(prefix, "downloads", basename(source_url))
+    if !isfile(source_path) || !verify(source_path, source_hash; verbose=verbose) || !satisfied(products[1]; verbose=verbose)
+        compile(libname, source_url, source_hash, prefix=prefix, verbose=verbose)
+    end
 end
 
 # Write out a deps.jl file that will contain mappings for our products
