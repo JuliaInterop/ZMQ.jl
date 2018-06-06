@@ -38,7 +38,7 @@ Compat.@info("Testing with ZMQ version $(ZMQ.version)")
 	# Note that we have to send this message to work around
 	# https://github.com/JuliaInterop/ZMQ.jl/issues/166
 	@test similar(msg, UInt8, 12) isa Vector{UInt8}
-	@test copy(msg) == Vector{UInt8}("test request")
+	@test copy(msg) == codeunits("test request")
 	ZMQ.send(s2, msg)
 	@test unsafe_string(ZMQ.recv(s1)) == "test request"
 	ZMQ.send(s1, Message("test response"))
