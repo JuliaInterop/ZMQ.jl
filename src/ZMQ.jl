@@ -23,8 +23,9 @@ include(depsjl_path)
 import Base:
     convert, get,
     length, size, stride, similar, getindex, setindex!,
-    fd, wait, notify, close, connect,
-    bind, send, recv
+    fd, wait, notify, close
+
+import Compat.Sockets: connect, bind, send, recv
 
 export
     #Types
@@ -32,7 +33,10 @@ export
     #functions
     set, subscribe, unsubscribe,
     #Constants
-    IO_THREADS,MAX_SOCKETS,PAIR,PUB,SUB,REQ,REP,ROUTER,DEALER,PULL,PUSH,XPUB,XSUB,XREQ,XREP,UPSTREAM,DOWNSTREAM,MORE,POLLIN,POLLOUT,POLLERR,STREAMER,FORWARDER,QUEUE,SNDMORE
+    IO_THREADS,MAX_SOCKETS,PAIR,PUB,SUB,REQ,REP,ROUTER,DEALER,PULL,PUSH,XPUB,XSUB,XREQ,XREP,UPSTREAM,DOWNSTREAM,MORE,POLLIN,POLLOUT,POLLERR,STREAMER,FORWARDER,QUEUE,SNDMORE,
+    #Sockets
+    connect, bind, send, recv
+
 const SNDMORE = true
 
 # A server will report most errors to the client over a Socket, but
@@ -385,7 +389,7 @@ end
 isfreed(m::Message) = haskey(gc_protect, m.handle)
 
 # AbstractArray behaviors:
-similar(a::Message, ::Type{T}, dims::Dims) where {T} = Array{T}(dims) # ?
+similar(a::Message, ::Type{T}, dims::Dims) where {T} = Array{T}(undef, dims) # ?
 # TODO: change `Any` to `Ref{Message}` when 0.6 support is dropped.
 length(zmsg::Message) = Int(ccall((:zmq_msg_size, libzmq), Csize_t, (Any,), zmsg))
 size(zmsg::Message) = (length(zmsg),)
@@ -557,7 +561,7 @@ function __init__()
     if version < v"3"
         error("ZMQ version $version < 3 is not supported")
     end
-    gc_free_fn_c[] = cfunction(gc_free_fn, Cint, Tuple{Ptr{Cvoid}, Ptr{Cvoid}})
+    gc_free_fn_c[] = @cfunction(gc_free_fn, Cint, (Ptr{Cvoid}, Ptr{Cvoid}))
 end
 
 end
