@@ -20,6 +20,15 @@ if !isfile(depsjl_path)
 end
 include(depsjl_path)
 
+# use GC.@preserve macro if it exists, otherwise nop
+if isdefined(Base, :GC)
+    import Base.GC: @preserve
+else
+    macro preserve(args...)
+        esc(args[end])
+    end
+end
+
 import Base:
     convert, get,
     length, size, stride, similar, getindex, setindex!,
@@ -230,7 +239,7 @@ for (f,k) in ((:subscribe,6), (:unsubscribe,7))
             end
         end
         $f(socket::Socket, filter::Union{Array,AbstractString}) =
-            $f_(socket, pointer(filter), sizeof(filter))
+            @preserve filter $f_(socket, pointer(filter), sizeof(filter))
         $f(socket::Socket) = $f_(socket, C_NULL, 0)
     end
 end
@@ -399,17 +408,17 @@ function getindex(a::Message, i::Integer)
     @boundscheck if i < 1 || i > length(a)
         throw(BoundsError())
     end
-    unsafe_load(pointer(a), i)
+    @preserve a unsafe_load(pointer(a), i)
 end
 function setindex!(a::Message, v, i::Integer)
     @boundscheck if i < 1 || i > length(a)
         throw(BoundsError())
     end
-    unsafe_store!(pointer(a), v, i)
+    @preserve a unsafe_store!(pointer(a), v, i)
 end
 
 # Convert message to string (copies data)
-unsafe_string(zmsg::Message) = unsafe_string(pointer(zmsg), length(zmsg))
+unsafe_string(zmsg::Message) = @preserve zmsg unsafe_string(pointer(zmsg), length(zmsg))
 
 # Build an IOStream from a message
 # Copies the data
