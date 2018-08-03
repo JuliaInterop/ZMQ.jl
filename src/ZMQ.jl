@@ -1,6 +1,6 @@
 # Support for ZeroMQ, a network and interprocess communication library
 
-__precompile__(true)
+VERSION < v"0.7.0-beta2.199" && __precompile__()
 
 module ZMQ
 
