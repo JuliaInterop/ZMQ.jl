@@ -22,7 +22,7 @@ function compile(libname, tarball_url, hash; prefix=BinaryProvider.global_prefix
         run(`make`)
         run(`make install`)
         mkpath(libdir(prefix))
-        cp("$install_dir/lib/libzmq.$dlext", joinpath(libdir(prefix), libname*"."*dlext),
-           remove_destination=true, follow_symlinks=true)
+        Compat.cp("$install_dir/lib/libzmq.$dlext", joinpath(libdir(prefix), libname*"."*dlext),
+           force=true, follow_symlinks=true)
     end
 end
