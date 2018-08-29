@@ -79,13 +79,11 @@ for (f,k) in ((:subscribe,6), (:unsubscribe,7))
     end
 end
 
-# Socket options of string type
+# string properties
 for (fset, fget, k) in [
-    (:_set_identity,                :_get_identity,                5)
-    (:_set_subscribe,               nothing,                      6)
-    (:_set_unsubscribe,             nothing,                      7)
-    (nothing,                      :_get_last_endpoint,          32)
-    (:_set_tcp_accept_filter,       nothing,                     38)
+    (:_set_routing_id,           :_get_routing_id,              5)
+    (nothing,                    :_get_last_endpoint,          32)
+    # (:_set_tcp_accept_filter,       nothing,                     38) #  deprecated
     ]
     if fset != nothing
         @eval function ($fset)(socket::Socket, option_val::String)
@@ -115,15 +113,15 @@ for (fset, fget, k) in [
         end
     end
 end
-@deprecate get_identity(socket::Socket) getproperty(socket, :identity)
-@deprecate set_identity(socket::Socket, val) setproperty!(socket, :identity, val)
+@deprecate get_identity(socket::Socket) getproperty(socket, :routing_id)
+@deprecate set_identity(socket::Socket, val) setproperty!(socket, :routing_id, val)
 
 # getproperty/setproperty API for socket properties
 const sockprops = (:affinity, :type, :linger, :reconnect_ivl, :backlog, :reconnect_ivl_max,
                    :rate, :recovery_ivl, :sndbuf, :rcvbuf, :rcvmore, :events, :maxmsgsize,
-                   :sndhwm, :rcvhwm, :multicast_hops, :ipv4only, :tcp_keepalive,
-                   :tcp_keepalive_idle, :tcp_keepalive_intvl, :rcvtimeo, :fd, :identity,
-                   :subscribe, :unsubscribe, :last_endpoint, :tcp_accept_filter)
+                   :sndhwm, :rcvhwm, :multicast_hops, :ipv4only,
+                   :tcp_keepalive, :tcp_keepalive_idle, :tcp_keepalive_cnt, :tcp_keepalive_intvl,
+                   :rcvtimeo, :sndtimeo, :fd, :routing_id, :last_endpoint)
 
 Base.propertynames(::Socket) = sockprops
 

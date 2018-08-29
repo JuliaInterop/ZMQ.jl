@@ -17,9 +17,9 @@ using ZMQ, Test
 	s1=Socket(REP)
 	s1.sndhwm = 1000
 	s1.linger = 1
-	s1.identity = "abcd"
+	s1.routing_id = "abcd"
 
-	@test s1.identity == "abcd"
+	@test s1.routing_id == "abcd"
 	@test s1.sndhwm === 1000
 	@test s1.linger === 1
 	@test s1.rcvmore === false
