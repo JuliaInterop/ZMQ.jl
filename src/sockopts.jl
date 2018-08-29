@@ -27,7 +27,7 @@ for (fset, fget, k, T) in [
     (nothing,                      :get_fd,                      14, Sys.iswindows() ? Ptr{Cvoid} : Cint)
     ]
     if fset != nothing
-        @eval function ($fset)(socket::Socket, option_val::Integer)
+        @eval function $(Symbol("_",fset))(socket::Socket, option_val::Integer)
             rc = ccall((:zmq_setsockopt, libzmq), Cint,
                        (Ptr{Cvoid}, Cint, Ref{$T}, Csize_t),
                        socket, $k, option_val, sizeof($T))
@@ -35,9 +35,11 @@ for (fset, fget, k, T) in [
                 throw(StateError(jl_zmq_error_str()))
             end
         end
+        prop = QuoteNode(Symbol(String(fset)[5:end]))
+        @eval @deprecate $fset(socket::Socket, option_val::Integer) setproperty!(socket, $prop, option_val)
     end
     if fget != nothing
-        @eval function ($fget)(socket::Socket)
+        @eval function $(Symbol("_",fget))(socket::Socket)
             val = Ref{$T}()
             rc = ccall((:zmq_getsockopt, libzmq), Cint,
                        (Ptr{Cvoid}, Cint, Ref{$T}, Ref{Csize_t}),
@@ -47,14 +49,16 @@ for (fset, fget, k, T) in [
             end
             return Int(val[])
         end
+        prop = QuoteNode(Symbol(String(fget)[5:end]))
+        @eval @deprecate $fget(socket::Socket) getproperty(socket, $prop)
     end
 end
 
 # For some functions, the publicly-visible versions should require &
 # return boolean:
-get_rcvmore(socket::Socket) = Bool(_zmq_getsockopt_rcvmore(socket))
-# And a convenience function
-ismore(socket::Socket) = get_rcvmore(socket)
+_get_rcvmore(socket::Socket) = Bool(__zmq_getsockopt_rcvmore(socket))
+@deprecate get_rcvmore(socket::Socket) getproperty(socket, :rcvmore)
+@deprecate ismore(socket::Socket) getproperty(socket, :rcvmore)
 
 # subscribe/unsubscribe options take an arbitrary byte array
 for (f,k) in ((:subscribe,6), (:unsubscribe,7))
@@ -77,11 +81,11 @@ end
 
 # Socket options of string type
 for (fset, fget, k) in [
-    (:set_identity,                :get_identity,                5)
-    (:set_subscribe,               nothing,                      6)
-    (:set_unsubscribe,             nothing,                      7)
-    (nothing,                      :get_last_endpoint,          32)
-    (:set_tcp_accept_filter,       nothing,                     38)
+    (:_set_identity,                :_get_identity,                5)
+    (:_set_subscribe,               nothing,                      6)
+    (:_set_unsubscribe,             nothing,                      7)
+    (nothing,                      :_get_last_endpoint,          32)
+    (:_set_tcp_accept_filter,       nothing,                     38)
     ]
     if fset != nothing
         @eval function ($fset)(socket::Socket, option_val::String)
@@ -109,5 +113,51 @@ for (fset, fget, k) in [
             end
             return String(resize!(buf, len[]))
         end
+    end
+end
+@deprecate get_identity(socket::Socket) getproperty(socket, :identity)
+@deprecate set_identity(socket::Socket, val) setproperty!(socket, :identity, val)
+
+# getproperty/setproperty API for socket properties
+const sockprops = (:affinity, :type, :linger, :reconnect_ivl, :backlog, :reconnect_ivl_max,
+                   :rate, :recovery_ivl, :sndbuf, :rcvbuf, :rcvmore, :events, :maxmsgsize,
+                   :sndhwm, :rcvhwm, :multicast_hops, :ipv4only, :tcp_keepalive,
+                   :tcp_keepalive_idle, :tcp_keepalive_intvl, :rcvtimeo, :fd, :identity,
+                   :subscribe, :unsubscribe, :last_endpoint, :tcp_accept_filter)
+
+Base.propertynames(::Socket) = sockprops
+
+let ex = :(error("Socket has no field ", name))
+    # build up the body of getproperty, of the form
+    #     if name === :affinity
+    #         get_affinity(sock)
+    #     elseif ...
+    for prop in sockprops
+        getprop = Symbol("_get_", prop)
+        if isdefined(@__MODULE__, getprop)
+            ex = Expr(:elseif, :(name === $(QuoteNode(prop))), :($getprop(sock)), ex)
+        end
+    end
+    ex = Expr(:if, ex.args...)
+    @eval function Base.getproperty(sock::Socket, name::Symbol)
+        $ex
+    end
+end
+
+let ex = :(error("Socket has no field ", name))
+    # build up the body of setproperty!, of the form
+    #     if name === :affinity
+    #         set_affinity(sock, val)
+    #     elseif ...
+    for prop in sockprops
+        setprop = Symbol("_set_", prop)
+        if isdefined(@__MODULE__, setprop)
+            ex = Expr(:elseif, :(name === $(QuoteNode(prop))), :($setprop(sock, x)), ex)
+        end
+    end
+    ex = Expr(:if, ex.args...)
+    @eval function Base.setproperty!(sock::Socket, name::Symbol, x)
+        $ex
+        return x
     end
 end

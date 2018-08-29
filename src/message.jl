@@ -154,13 +154,13 @@ function Sockets.send(socket::Socket, zmsg::Message, SNDMORE::Bool=false)
                     zmsg, socket, (ZMQ_SNDMORE*SNDMORE) | ZMQ_DONTWAIT)
         if rc == -1
             zmq_errno() == EAGAIN || throw(StateError(jl_zmq_error_str()))
-            while (get_events(socket) & POLLOUT) == 0
+            while (socket.events & POLLOUT) == 0
                 wait(socket)
             end
         else
-            notify_is_expensive = !isempty(socket.pollfd.notify.waitq)
+            notify_is_expensive = !isempty(getfield(socket,:pollfd).notify.waitq)
             if notify_is_expensive
-                get_events(socket) != 0 && notify(socket)
+                socket.events != 0 && notify(socket)
             end
             break
         end
@@ -189,13 +189,13 @@ function Sockets.recv(socket::Socket)
                     zmsg, socket, ZMQ_DONTWAIT)
         if rc == -1
             zmq_errno() == EAGAIN || throw(StateError(jl_zmq_error_str()))
-            while (get_events(socket) & POLLIN) == 0
+            while (socket.events & POLLIN) == 0
                 wait(socket)
             end
         else
-            notify_is_expensive = !isempty(socket.pollfd.notify.waitq)
+            notify_is_expensive = !isempty(getfield(socket,:pollfd).notify.waitq)
             if notify_is_expensive
-                get_events(socket) != 0 && notify(socket)
+                socket.events != 0 && notify(socket)
             end
             break
         end

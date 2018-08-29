@@ -15,18 +15,18 @@ using ZMQ, Test
 	ZMQ.close(s)
 
 	s1=Socket(REP)
-	ZMQ.set_sndhwm(s1, 1000)
-	ZMQ.set_linger(s1, 1)
-	ZMQ.set_identity(s1, "abcd")
+	s1.sndhwm = 1000
+	s1.linger = 1
+	s1.identity = "abcd"
 
-	@test ZMQ.get_identity(s1)::AbstractString == "abcd"
-	@test ZMQ.get_sndhwm(s1)::Integer == 1000
-	@test ZMQ.get_linger(s1)::Integer == 1
-	@test ZMQ.ismore(s1) == false
+	@test s1.identity == "abcd"
+	@test s1.sndhwm === 1000
+	@test s1.linger === 1
+	@test s1.rcvmore === false
 
 	s2=Socket(REQ)
-	@test ZMQ.get_type(s1) == REP
-	@test ZMQ.get_type(s2) == REQ
+	@test s1.type == REP
+	@test s2.type == REQ
 
 	ZMQ.bind(s1, "tcp://*:5555")
 	ZMQ.connect(s2, "tcp://localhost:5555")

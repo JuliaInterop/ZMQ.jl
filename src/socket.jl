@@ -10,21 +10,22 @@ mutable struct Socket
             throw(StateError(jl_zmq_error_str()))
         end
         socket = new(p)
-        socket.pollfd = _FDWatcher(fd(socket), #=readable=#true, #=writable=#false)
+        setfield!(socket, :pollfd, _FDWatcher(fd(socket), #=readable=#true, #=writable=#false))
         finalizer(close, socket)
-        push!(ctx.sockets, WeakRef(socket))
+        push!(getfield(ctx, :sockets), WeakRef(socket))
         return socket
     end
     Socket(typ::Integer) = Socket(context(), typ)
 end
 
-Base.unsafe_convert(::Type{Ptr{Cvoid}}, s::Socket) = s.data
+Base.unsafe_convert(::Type{Ptr{Cvoid}}, s::Socket) = getfield(s, :data)
 
+Base.isopen(socket::Socket) = getfield(socket, :data) != C_NULL
 function Base.close(socket::Socket)
-    if socket.data != C_NULL
-        close(socket.pollfd, #=readable=#true, #=writable=#false)
+    if isopen(socket)
+        close(getfield(socket, :pollfd), #=readable=#true, #=writable=#false)
         rc = ccall((:zmq_close, libzmq), Cint,  (Ptr{Cvoid},), socket)
-        socket.data = C_NULL
+        setfield!(socket, :data, C_NULL)
         if rc != 0
             throw(StateError(jl_zmq_error_str()))
         end
@@ -33,15 +34,15 @@ end
 
 # Raw FD access
 if Sys.isunix()
-    Base.fd(socket::Socket) = RawFD(get_fd(socket))
+    Base.fd(socket::Socket) = RawFD(socket.fd)
 end
 if Sys.iswindows()
     using Base.Libc: WindowsRawSocket
-    Base.fd(socket::Socket) = WindowsRawSocket(convert(Ptr{Cvoid}, get_fd(socket)))
+    Base.fd(socket::Socket) = WindowsRawSocket(convert(Ptr{Cvoid}, socket.fd))
 end
 
-Base.wait(socket::Socket) = wait(socket.pollfd, readable=true, writable=false)
-Base.notify(socket::Socket) = @preserve socket uv_pollcb(socket.pollfd.handle, Int32(0), Int32(UV_READABLE))
+Base.wait(socket::Socket) = wait(getfield(socket, :pollfd), readable=true, writable=false)
+Base.notify(socket::Socket) = @preserve socket uv_pollcb(getfield(socket, :pollfd).handle, Int32(0), Int32(UV_READABLE))
 
 function Sockets.bind(socket::Socket, endpoint::AbstractString)
     rc = ccall((:zmq_bind, libzmq), Cint, (Ptr{Cvoid}, Ptr{UInt8}), socket, endpoint)
