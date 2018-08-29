@@ -41,38 +41,37 @@ const u32p = zeros(UInt32, 1)
 const sz = zeros(UInt, 1)
 const pp = fill(C_NULL, 1)
 
-for (fset, fget, k, p) in [
-    (:set_affinity,                :get_affinity,                 4, u64p)
-    (:set_type,                    :get_type,                    16,   ip)
-    (:set_linger,                  :get_linger,                  17,   ip)
-    (:set_reconnect_ivl,           :get_reconnect_ivl,           18,   ip)
-    (:set_backlog,                 :get_backlog,                 19,   ip)
-    (:set_reconnect_ivl_max,       :get_reconnect_ivl_max,       21,   ip)
-    (:set_rate,                    :get_rate,                     8,   ip)
-    (:set_recovery_ivl,            :get_recovery_ivl,             9,   ip)
-    (:set_sndbuf,                  :get_sndbuf,                  11,   ip)
-    (:set_rcvbuf,                  :get_rcvbuf,                  12,   ip)
-    (nothing,                      :_zmq_getsockopt_rcvmore,     13,   ip)
-    (nothing,                      :get_events,                  15,   ip)
-    (:set_maxmsgsize,              :get_maxmsgsize,              22,   ip)
-    (:set_sndhwm,                  :get_sndhwm,                  23,   ip)
-    (:set_rcvhwm,                  :get_rcvhwm,                  24,   ip)
-    (:set_multicast_hops,          :get_multicast_hops,          25,   ip)
-    (:set_ipv4only,                :get_ipv4only,                31,   ip)
-    (:set_tcp_keepalive,           :get_tcp_keepalive,           34,   ip)
-    (:set_tcp_keepalive_idle,      :get_tcp_keepalive_idle,      35,   ip)
-    (:set_tcp_keepalive_cnt,       :get_tcp_keepalive_cnt,       36,   ip)
-    (:set_tcp_keepalive_intvl,     :get_tcp_keepalive_intvl,     37,   ip)
-    (:set_rcvtimeo,                :get_rcvtimeo,                27,   ip)
-    (:set_sndtimeo,                :get_sndtimeo,                28,   ip)
-    (nothing,                      :get_fd,                      14, Compat.Sys.iswindows() ? pp : ip)
+for (fset, fget, k, T) in [
+    (:set_affinity,                :get_affinity,                 4, UInt64)
+    (:set_type,                    :get_type,                    16,   Cint)
+    (:set_linger,                  :get_linger,                  17,   Cint)
+    (:set_reconnect_ivl,           :get_reconnect_ivl,           18,   Cint)
+    (:set_backlog,                 :get_backlog,                 19,   Cint)
+    (:set_reconnect_ivl_max,       :get_reconnect_ivl_max,       21,   Cint)
+    (:set_rate,                    :get_rate,                     8,   Cint)
+    (:set_recovery_ivl,            :get_recovery_ivl,             9,   Cint)
+    (:set_sndbuf,                  :get_sndbuf,                  11,   Cint)
+    (:set_rcvbuf,                  :get_rcvbuf,                  12,   Cint)
+    (nothing,                      :_zmq_getsockopt_rcvmore,     13,   Cint)
+    (nothing,                      :get_events,                  15,   Cint)
+    (:set_maxmsgsize,              :get_maxmsgsize,              22,   Cint)
+    (:set_sndhwm,                  :get_sndhwm,                  23,   Cint)
+    (:set_rcvhwm,                  :get_rcvhwm,                  24,   Cint)
+    (:set_multicast_hops,          :get_multicast_hops,          25,   Cint)
+    (:set_ipv4only,                :get_ipv4only,                31,   Cint)
+    (:set_tcp_keepalive,           :get_tcp_keepalive,           34,   Cint)
+    (:set_tcp_keepalive_idle,      :get_tcp_keepalive_idle,      35,   Cint)
+    (:set_tcp_keepalive_cnt,       :get_tcp_keepalive_cnt,       36,   Cint)
+    (:set_tcp_keepalive_intvl,     :get_tcp_keepalive_intvl,     37,   Cint)
+    (:set_rcvtimeo,                :get_rcvtimeo,                27,   Cint)
+    (:set_sndtimeo,                :get_sndtimeo,                28,   Cint)
+    (nothing,                      :get_fd,                      14, Compat.Sys.iswindows() ? pp : Cint)
     ]
     if fset != nothing
         @eval function ($fset)(socket::Socket, option_val::Integer)
-            ($p)[1] = option_val
             rc = ccall((:zmq_setsockopt, libzmq), Cint,
-                       (Ptr{Cvoid}, Cint, Ptr{Cvoid}, UInt),
-                       socket, $k, $p, sizeof(eltype($p)))
+                       (Ptr{Cvoid}, Cint, Ref{$T}, Csize_t),
+                       socket, $k, option_val, sizeof($T))
             if rc != 0
                 throw(StateError(jl_zmq_error_str()))
             end
@@ -80,14 +79,14 @@ for (fset, fget, k, p) in [
     end
     if fget != nothing
         @eval function ($fget)(socket::Socket)
-            ($sz)[1] = sizeof(eltype($p))
+            val = Ref{$T}()
             rc = ccall((:zmq_getsockopt, libzmq), Cint,
-                       (Ptr{Cvoid}, Cint, Ptr{Cvoid}, Ptr{UInt}),
-                       socket, $k, $p, $sz)
+                       (Ptr{Cvoid}, Cint, Ref{$T}, Ref{Csize_t}),
+                       socket, $k, val, sizeof($T))
             if rc != 0
                 throw(StateError(jl_zmq_error_str()))
             end
-            return Int(($p)[1])
+            return Int(val[])
         end
     end
 end
@@ -104,14 +103,15 @@ for (f,k) in ((:subscribe,6), (:unsubscribe,7))
     @eval begin
         function $f_(socket::Socket, filter::Ptr{T}, len::Integer) where {T}
             rc = ccall((:zmq_setsockopt, libzmq), Cint,
-                       (Ptr{Cvoid}, Cint, Ptr{T}, UInt),
+                       (Ptr{Cvoid}, Cint, Ptr{T}, Csize_t),
                        socket, $k, filter, len)
             if rc != 0
                 throw(StateError(jl_zmq_error_str()))
             end
         end
-        $f(socket::Socket, filter::Union{Array,AbstractString}) =
+        $f(socket::Socket, filter::Union{Vector{UInt8},String}) =
             @preserve filter $f_(socket, pointer(filter), sizeof(filter))
+        $f(socket::Socket, filter::AbstractString) = $f(socket, String(filter))
         $f(socket::Socket) = $f_(socket, C_NULL, 0)
     end
 end
@@ -126,11 +126,10 @@ if Compat.Sys.iswindows()
 end
 
 wait(socket::Socket) = wait(socket.pollfd, readable=true, writable=false)
-notify(socket::Socket) = uv_pollcb(socket.pollfd.handle, Int32(0), Int32(UV_READABLE))
+notify(socket::Socket) = @preserve socket uv_pollcb(socket.pollfd.handle, Int32(0), Int32(UV_READABLE))
 
 
 # Socket options of string type
-const u8ap = zeros(UInt8, 255)
 for (fset, fget, k) in [
     (:set_identity,                :get_identity,                5)
     (:set_subscribe,               nothing,                      6)
@@ -140,12 +139,12 @@ for (fset, fget, k) in [
     ]
     if fset != nothing
         @eval function ($fset)(socket::Socket, option_val::String)
-            if length(option_val) > 255
+            if sizeof(option_val) > 255
                 throw(StateError("option value too large"))
             end
             rc = ccall((:zmq_setsockopt, libzmq), Cint,
-                       (Ptr{Cvoid}, Cint, Ptr{UInt8}, UInt),
-                       socket, $k, option_val, length(option_val))
+                       (Ptr{Cvoid}, Cint, Ptr{UInt8}, Csize_t),
+                       socket, $k, option_val, sizeof(option_val))
             if rc != 0
                 throw(StateError(jl_zmq_error_str()))
             end
@@ -153,14 +152,15 @@ for (fset, fget, k) in [
     end
     if fget != nothing
         @eval function ($fget)(socket::Socket)
-            ($sz)[1] = length($u8ap)
+            buf = Base.StringVector(255)
+            len = Ref{Csize_t}(sizeof(buf))
             rc = ccall((:zmq_getsockopt, libzmq), Cint,
-                       (Ptr{Cvoid}, Cint, Ptr{UInt8}, Ptr{UInt}),
-                       socket, $k, $u8ap, $sz)
+                       (Ptr{Cvoid}, Cint, Ptr{UInt8}, Ref{Csize_t}),
+                       socket, $k, buf, len)
             if rc != 0
                 throw(StateError(jl_zmq_error_str()))
             end
-            return unsafe_string(unsafe_convert(Ptr{UInt8}, $u8ap), Int(($sz)[1]))
+            return String(resize!(buf, len[]))
         end
     end
 end
