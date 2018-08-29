@@ -110,7 +110,7 @@ for (f,k) in ((:subscribe,6), (:unsubscribe,7))
             end
         end
         $f(socket::Socket, filter::Union{Array,AbstractString}) =
-            $f_(socket, pointer(filter), sizeof(filter))
+            @preserve filter $f_(socket, pointer(filter), sizeof(filter))
         $f(socket::Socket) = $f_(socket, C_NULL, 0)
     end
 end

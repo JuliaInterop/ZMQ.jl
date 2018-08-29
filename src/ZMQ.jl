@@ -1,6 +1,6 @@
 # Support for ZeroMQ, a network and interprocess communication library
 
-__precompile__(true)
+VERSION < v"0.7.0-beta2.199" && __precompile__()
 
 module ZMQ
 
@@ -19,6 +19,15 @@ if !isfile(depsjl_path)
     error("Blosc not installed properly, run Pkg.build(\"ZMQ\"), restart Julia and try again")
 end
 include(depsjl_path)
+
+# use GC.@preserve macro if it exists, otherwise nop
+if isdefined(Base, :GC)
+    import Base.GC: @preserve
+else
+    macro preserve(args...)
+        esc(args[end])
+    end
+end
 
 import Base:
     convert, get,
