@@ -13,15 +13,6 @@ if !isfile(depsjl_path)
 end
 include(depsjl_path)
 
-# use GC.@preserve macro if it exists, otherwise nop
-if isdefined(Base, :GC)
-    import Base.GC: @preserve
-else
-    macro preserve(args...)
-        esc(args[end])
-    end
-end
-
 export
     #Types
     StateError,Context,Socket,Message,
