@@ -1,18 +1,11 @@
 # Support for ZeroMQ, a network and interprocess communication library
 
-VERSION < v"0.7.0-beta2.199" && __precompile__()
-
 module ZMQ
 
-using Compat
-using Compat.Libdl, Compat.Libc
-using Base.Libc: EAGAIN
-@static if VERSION < v"0.7.0-DEV.2359"
-    using Base.Filesystem: UV_READABLE, uv_pollcb, _FDWatcher
-else
-    using FileWatching: UV_READABLE, uv_pollcb, _FDWatcher
-end
-using Compat.Sockets: connect, bind, send, recv
+using Libdl, Libc
+using Libc: EAGAIN
+using FileWatching: UV_READABLE, uv_pollcb, _FDWatcher
+using Sockets: connect, bind, send, recv
 
 const depsjl_path = joinpath(dirname(@__FILE__), "..", "deps", "deps.jl")
 if !isfile(depsjl_path)

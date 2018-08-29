@@ -1,7 +1,6 @@
-using ZMQ, Compat
-using Compat.Test
+using ZMQ, Test
 
-Compat.@info("Testing with ZMQ version $(ZMQ.version)")
+@info("Testing with ZMQ version $(ZMQ.version)")
 
 @testset "ZMQ sockets" begin
 	ctx=Context()

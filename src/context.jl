@@ -19,12 +19,12 @@ mutable struct Context
 
     function Context()
         zctx = new(_ctx_new(), WeakRef[])
-        @compat finalizer(close, zctx)
+        finalizer(close, zctx)
         return zctx
     end
-    function Context(::Compat.UndefInitializer)
+    function Context(::UndefInitializer)
         zctx = new(C_NULL, WeakRef[])
-        @compat finalizer(close, zctx)
+        finalizer(close, zctx)
         return zctx
     end
 end

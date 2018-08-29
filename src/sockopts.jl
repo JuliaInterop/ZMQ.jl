@@ -24,7 +24,7 @@ for (fset, fget, k, T) in [
     (:set_tcp_keepalive_intvl,     :get_tcp_keepalive_intvl,     37,   Cint)
     (:set_rcvtimeo,                :get_rcvtimeo,                27,   Cint)
     (:set_sndtimeo,                :get_sndtimeo,                28,   Cint)
-    (nothing,                      :get_fd,                      14, Compat.Sys.iswindows() ? Ptr{Cvoid} : Cint)
+    (nothing,                      :get_fd,                      14, Sys.iswindows() ? Ptr{Cvoid} : Cint)
     ]
     if fset != nothing
         @eval function ($fset)(socket::Socket, option_val::Integer)
