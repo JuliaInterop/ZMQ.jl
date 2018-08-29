@@ -71,7 +71,7 @@ function Base.close(ctx::Context)
         end
     end
 end
-term(ctx::Context) = close(ctx)
+@deprecate term(ctx::Context) close(ctx)
 
 function Base.get(ctx::Context, option::Integer)
     val = ccall((:zmq_ctx_get, libzmq), Cint, (Ptr{Cvoid}, Cint), ctx, option)
