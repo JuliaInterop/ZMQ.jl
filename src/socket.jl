@@ -31,16 +31,6 @@ function close(socket::Socket)
     end
 end
 
-
-# Getting and setting socket options
-# Socket options of integer type
-const u64p = zeros(UInt64, 1)
-const i64p = zeros(Int64, 1)
-const ip = zeros(Cint, 1)
-const u32p = zeros(UInt32, 1)
-const sz = zeros(UInt, 1)
-const pp = fill(C_NULL, 1)
-
 for (fset, fget, k, T) in [
     (:set_affinity,                :get_affinity,                 4, UInt64)
     (:set_type,                    :get_type,                    16,   Cint)
@@ -65,7 +55,7 @@ for (fset, fget, k, T) in [
     (:set_tcp_keepalive_intvl,     :get_tcp_keepalive_intvl,     37,   Cint)
     (:set_rcvtimeo,                :get_rcvtimeo,                27,   Cint)
     (:set_sndtimeo,                :get_sndtimeo,                28,   Cint)
-    (nothing,                      :get_fd,                      14, Compat.Sys.iswindows() ? pp : Cint)
+    (nothing,                      :get_fd,                      14, Compat.Sys.iswindows() ? Ptr{Cvoid} : Cint)
     ]
     if fset != nothing
         @eval function ($fset)(socket::Socket, option_val::Integer)
