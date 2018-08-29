@@ -26,6 +26,7 @@ export
 
 
 include("constants.jl")
+include("optutil.jl")
 include("error.jl")
 include("socket.jl")
 include("sockopts.jl")

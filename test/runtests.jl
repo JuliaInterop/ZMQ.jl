@@ -2,14 +2,18 @@ using ZMQ, Test
 
 @info("Testing with ZMQ version $(ZMQ.version)")
 
-@testset "ZMQ sockets" begin
+@testset "ZMQ contexts" begin
 	ctx=Context()
 	@test ctx isa Context
+	@test (ctx.io_threads = 2) == 2
+	@test ctx.io_threads == 2
 	ZMQ.close(ctx)
 
 	#try to create socket with expired context
 	@test_throws StateError Socket(ctx, PUB)
+end
 
+@testset "ZMQ sockets" begin
 	s=Socket(PUB)
 	@test s isa Socket
 	ZMQ.close(s)

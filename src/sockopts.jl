@@ -124,38 +124,14 @@ const sockprops = (:affinity, :type, :linger, :reconnect_ivl, :backlog, :reconne
                    :rcvtimeo, :sndtimeo, :fd, :routing_id, :last_endpoint)
 
 Base.propertynames(::Socket) = sockprops
-
-let ex = :(error("Socket has no field ", name))
-    # build up the body of getproperty, of the form
-    #     if name === :affinity
-    #         get_affinity(sock)
-    #     elseif ...
-    for prop in sockprops
-        getprop = Symbol("_get_", prop)
-        if isdefined(@__MODULE__, getprop)
-            ex = Expr(:elseif, :(name === $(QuoteNode(prop))), :($getprop(sock)), ex)
-        end
-    end
-    ex = Expr(:if, ex.args...)
-    @eval function Base.getproperty(sock::Socket, name::Symbol)
-        $ex
-    end
+@eval function Base.getproperty(value::Socket, name::Symbol)
+    $(propexpression(filter!(p -> isdefined(@__MODULE__, Symbol("_get_", p)), collect(sockprops))) do p
+        :($(Symbol("_get_", p))(value))
+    end)
 end
-
-let ex = :(error("Socket has no field ", name))
-    # build up the body of setproperty!, of the form
-    #     if name === :affinity
-    #         set_affinity(sock, val)
-    #     elseif ...
-    for prop in sockprops
-        setprop = Symbol("_set_", prop)
-        if isdefined(@__MODULE__, setprop)
-            ex = Expr(:elseif, :(name === $(QuoteNode(prop))), :($setprop(sock, x)), ex)
-        end
-    end
-    ex = Expr(:if, ex.args...)
-    @eval function Base.setproperty!(sock::Socket, name::Symbol, x)
-        $ex
-        return x
-    end
+@eval function Base.setproperty!(value::Socket, name::Symbol, x)
+    $(propexpression(filter!(p -> isdefined(@__MODULE__, Symbol("_set_", p)), collect(sockprops))) do p
+        :($(Symbol("_set_", p))(value, x))
+    end)
+    return x
 end

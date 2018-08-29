@@ -4,6 +4,7 @@
 # Context options
 const IO_THREADS = 1
 const MAX_SOCKETS = 2
+const IPV6 = 42
 
 #Socket Types
 const PAIR = 0

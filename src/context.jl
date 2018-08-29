@@ -73,17 +73,39 @@ function Base.close(ctx::Context)
 end
 @deprecate term(ctx::Context) close(ctx)
 
-function Base.get(ctx::Context, option::Integer)
+function _get(ctx::Context, option::Integer)
     val = ccall((:zmq_ctx_get, libzmq), Cint, (Ptr{Cvoid}, Cint), ctx, option)
     if val < 0
         throw(StateError(jl_zmq_error_str()))
     end
     return val
 end
-
-function set(ctx::Context, option::Integer, value::Integer)
+function _set(ctx::Context, option::Integer, value::Integer)
     rc = ccall((:zmq_ctx_set, libzmq), Cint, (Ptr{Cvoid}, Cint, Cint), ctx, option, value)
     if rc != 0
         throw(StateError(jl_zmq_error_str()))
     end
+end
+
+const ctxopts = (:io_threads, :max_sockets, :ipv6)
+Base.propertynames(::Context) = ctxopts
+@eval function Base.getproperty(value::Context, name::Symbol)
+    $(propexpression(ctxopts) do p
+        :(_get(value, $(Symbol(uppercase(String(p))))))
+    end)
+end
+@eval function Base.setproperty!(value::Context, name::Symbol, x::Integer)
+    $(propexpression(ctxopts) do p
+        :(_set(value, $(Symbol(uppercase(String(p)))), x))
+    end)
+    return x
+end
+
+function Base.get(ctx::Context, option::Integer)
+    Base.depwarn("get(ctx, option) is deprecated; use ctx.option instead", :get)
+    return _get(ctx, option)
+end
+function set(ctx::Context, option::Integer, value::Integer)
+    Base.depwarn("set(ctx, option, val) is deprecated; use ctx.option = val instead", :set)
+    return _set(ctx, option, value)
 end

@@ -34,7 +34,7 @@ mutable struct Message <: AbstractArray{UInt8,1}
     # Create an empty message (for receive)
     function Message()
         zmsg = new()
-        zmsg.handle = C_NULL
+        setfield!(zmsg, :handle, C_NULL)
         rc = ccall((:zmq_msg_init, libzmq), Cint, (Ref{Message},), zmsg)
         if rc != 0
             throw(StateError(jl_zmq_error_str()))
@@ -45,7 +45,7 @@ mutable struct Message <: AbstractArray{UInt8,1}
     # Create a message with a given buffer size (for send)
     function Message(len::Integer)
         zmsg = new()
-        zmsg.handle = C_NULL
+        setfield!(zmsg, :handle, C_NULL)
         rc = ccall((:zmq_msg_init_size, libzmq), Cint, (Ref{Message}, Csize_t), zmsg, len)
         if rc != 0
             throw(StateError(jl_zmq_error_str()))
@@ -60,9 +60,9 @@ mutable struct Message <: AbstractArray{UInt8,1}
     # we can hold a reference to it until zeromq is done with the buffer.
     function Message(origin::Any, m::Ptr{T}, len::Integer) where {T}
         zmsg = new()
-        zmsg.handle = gc_protect_handle(origin)
+        setfield!(zmsg, :handle, gc_protect_handle(origin))
         rc = ccall((:zmq_msg_init_data, libzmq), Cint, (Ref{Message}, Ptr{T}, Csize_t, Ptr{Cvoid}, Ptr{Cvoid}),
-                   zmsg, m, len, gc_free_fn_c[], zmsg.handle)
+                   zmsg, m, len, gc_free_fn_c[], getfield(zmsg, :handle))
         if rc != 0
             throw(StateError(jl_zmq_error_str()))
         end
@@ -87,7 +87,7 @@ end
 
 # check whether zeromq has called our free-function, i.e. whether
 # we are save to reclaim ownership of any buffer object
-isfreed(m::Message) = haskey(gc_protect, m.handle)
+isfreed(m::Message) = haskey(gc_protect, getfield(m, :handle))
 
 # AbstractArray behaviors:
 Base.similar(a::Message, ::Type{T}, dims::Dims) where {T} = Array{T}(undef, dims) # ?
@@ -126,19 +126,36 @@ function Base.close(zmsg::Message)
     end
 end
 
-function Base.get(zmsg::Message, property::Integer)
+function _get(zmsg::Message, property::Integer)
     val = ccall((:zmq_msg_get, libzmq), Cint, (Ref{Message}, Cint), zmsg, property)
     if val < 0
         throw(StateError(jl_zmq_error_str()))
     end
     val
 end
-function set(zmsg::Message, property::Integer, value::Integer)
+function _set(zmsg::Message, property::Integer, value::Integer)
     rc = ccall((:zmq_msg_set, libzmq), Cint, (Ref{Message}, Cint, Cint), zmsg, property, value)
     if rc < 0
         throw(StateError(jl_zmq_error_str()))
     end
 end
+Base.propertynames(zmsg::Message) = (:more)
+function Base.getproperty(zmsg::Message, name::Symbol)
+    if name === :more
+        return _get(zmsg, MORE)
+    else
+        error("Message has no field $name")
+    end
+end
+function Base.setproperty!(zmsg::Message, name::Symbol, value::Integer)
+    # Currently the zmq_msg_set() function does not support any property names
+    error("Message has no writable field $name")
+end
+function Base.get(zmsg::Message, option::Integer)
+    Base.depwarn("get(zmsg, option) is deprecated; use zmsg.option instead", :get)
+    return _get(zmsg, option)
+end
+@deprecate set(zmsg::Message, property::Integer, value::Integer) _set(zmsg, property, value)
 
 ## Send/receive messages
 #
