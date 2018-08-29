@@ -36,7 +36,7 @@ if Sys.isunix()
     Base.fd(socket::Socket) = RawFD(get_fd(socket))
 end
 if Sys.iswindows()
-    using Libc: WindowsRawSocket
+    using Base.Libc: WindowsRawSocket
     Base.fd(socket::Socket) = WindowsRawSocket(convert(Ptr{Cvoid}, get_fd(socket)))
 end
 

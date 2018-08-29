@@ -2,10 +2,11 @@
 
 module ZMQ
 
-using Libdl, Libc
-using Libc: EAGAIN
+using Base.Libc: EAGAIN
 using FileWatching: UV_READABLE, uv_pollcb, _FDWatcher
+import Sockets
 using Sockets: connect, bind, send, recv
+import Base.GC: @preserve
 
 const depsjl_path = joinpath(dirname(@__FILE__), "..", "deps", "deps.jl")
 if !isfile(depsjl_path)
