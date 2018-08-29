@@ -30,8 +30,8 @@ seek(out,0)
 #or, conveniently, use unsafe_string(msg) to retrieve a string
 
 ZMQ.send(s1, Message("test response"))
-ZMQ.close(s1)
-ZMQ.close(s2)
+close(s1)
+close(s2)
 
 ```
 

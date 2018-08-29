@@ -76,7 +76,7 @@ mutable struct Message <: AbstractArray{UInt8,1}
     # Create a message with a given AbstractString or Array as a buffer (for send)
     # (note: now "owns" the buffer ... the Array must not be resized,
     #        or even written to after the message is sent!)
-    Message(m::String) = Message(m, unsafe_convert(Ptr{UInt8}, pointer(m)), sizeof(m))
+    Message(m::String) = Message(m, pointer(m), sizeof(m))
     Message(p::SubString{String}) =
         Message(p, pointer(p.string)+p.offset, sizeof(p))
     Message(a::Array) = Message(a, pointer(a), sizeof(a))
@@ -93,19 +93,19 @@ end
 isfreed(m::Message) = haskey(gc_protect, m.handle)
 
 # AbstractArray behaviors:
-similar(a::Message, ::Type{T}, dims::Dims) where {T} = Array{T}(undef, dims) # ?
+Base.similar(a::Message, ::Type{T}, dims::Dims) where {T} = Array{T}(undef, dims) # ?
 # TODO: change `Any` to `Ref{Message}` when 0.6 support is dropped.
-length(zmsg::Message) = Int(ccall((:zmq_msg_size, libzmq), Csize_t, (Any,), zmsg))
-size(zmsg::Message) = (length(zmsg),)
+Base.length(zmsg::Message) = Int(ccall((:zmq_msg_size, libzmq), Csize_t, (Any,), zmsg))
+Base.size(zmsg::Message) = (length(zmsg),)
 # TODO: change `Any` to `Ref{Message}` when 0.6 support is dropped.
-unsafe_convert(::Type{Ptr{UInt8}}, zmsg::Message) = ccall((:zmq_msg_data, libzmq), Ptr{UInt8}, (Any,), zmsg)
-function getindex(a::Message, i::Integer)
+Base.unsafe_convert(::Type{Ptr{UInt8}}, zmsg::Message) = ccall((:zmq_msg_data, libzmq), Ptr{UInt8}, (Any,), zmsg)
+function Base.getindex(a::Message, i::Integer)
     @boundscheck if i < 1 || i > length(a)
         throw(BoundsError())
     end
     @preserve a unsafe_load(pointer(a), i)
 end
-function setindex!(a::Message, v, i::Integer)
+function Base.setindex!(a::Message, v, i::Integer)
     @boundscheck if i < 1 || i > length(a)
         throw(BoundsError())
     end
@@ -113,18 +113,18 @@ function setindex!(a::Message, v, i::Integer)
 end
 
 # Convert message to string (copies data)
-unsafe_string(zmsg::Message) = @preserve zmsg unsafe_string(pointer(zmsg), length(zmsg))
+Base.unsafe_string(zmsg::Message) = @preserve zmsg unsafe_string(pointer(zmsg), length(zmsg))
 
 # Build an IOStream from a message
 # Copies the data
-function convert(::Type{IOStream}, zmsg::Message)
+function Base.convert(::Type{IOStream}, zmsg::Message)
     s = IOBuffer()
     write(s, zmsg)
     return s
 end
 # Close a message. You should not need to call this manually (let the
 # finalizer do it).
-function close(zmsg::Message)
+function Base.close(zmsg::Message)
     # TODO: change `Any` to `Ref{Message}` when 0.6 support is dropped.
     rc = ccall((:zmq_msg_close, libzmq), Cint, (Any,), zmsg)
     if rc != 0
@@ -132,7 +132,7 @@ function close(zmsg::Message)
     end
 end
 
-function get(zmsg::Message, property::Integer)
+function Base.get(zmsg::Message, property::Integer)
     # TODO: change `Any` to `Ref{Message}` when 0.6 support is dropped.
     val = ccall((:zmq_msg_get, libzmq), Cint, (Any, Cint), zmsg, property)
     if val < 0
@@ -156,7 +156,7 @@ end
 #   send(socket, zmsg)
 #   zmsg = recv(socket)
 
-function send(socket::Socket, zmsg::Message, SNDMORE::Bool=false)
+function Compat.Sockets.send(socket::Socket, zmsg::Message, SNDMORE::Bool=false)
     while true
         # TODO: change `Any` to `Ref{Message}` when 0.6 support is dropped.
         rc = ccall((:zmq_msg_send, libzmq), Cint, (Any, Ptr{Cvoid}, Cint),
@@ -177,20 +177,20 @@ function send(socket::Socket, zmsg::Message, SNDMORE::Bool=false)
 end
 
 # strings are immutable, so we can send them zero-copy by default
-send(socket::Socket, msg::AbstractString, SNDMORE::Bool=false) = send(socket, Message(msg), SNDMORE)
+Compat.Sockets.send(socket::Socket, msg::AbstractString, SNDMORE::Bool=false) = send(socket, Message(msg), SNDMORE)
 
 # Make a copy of arrays before sending, by default, since it is too
 # dangerous to require that the array not change until ZMQ is done with it.
 # For zero-copy array messages, construct a Message explicitly.
-send(socket::Socket, msg::AbstractArray, SNDMORE::Bool=false) = send(socket, Message(copy(msg)), SNDMORE)
+Compat.Sockets.send(socket::Socket, msg::AbstractArray, SNDMORE::Bool=false) = send(socket, Message(copy(msg)), SNDMORE)
 
-function send(f::Function, socket::Socket, SNDMORE::Bool=false)
+function Compat.Sockets.send(f::Function, socket::Socket, SNDMORE::Bool=false)
     io = IOBuffer()
     f(io)
     send(socket, Message(io), SNDMORE)
 end
 
-function recv(socket::Socket)
+function Compat.Sockets.recv(socket::Socket)
     zmsg = Message()
     rc = -1
     while true

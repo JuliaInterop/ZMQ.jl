@@ -54,7 +54,7 @@ end
 
 @deprecate Context(n::Integer) Context()
 
-function close(ctx::Context)
+function Base.close(ctx::Context)
     if ctx.data != C_NULL # don't close twice!
         for w in ctx.sockets
             s = w.value
@@ -73,7 +73,7 @@ function close(ctx::Context)
 end
 term(ctx::Context) = close(ctx)
 
-function get(ctx::Context, option::Integer)
+function Base.get(ctx::Context, option::Integer)
     val = ccall((:zmq_ctx_get, libzmq), Cint, (Ptr{Cvoid}, Cint), ctx, option)
     if val < 0
         throw(StateError(jl_zmq_error_str()))

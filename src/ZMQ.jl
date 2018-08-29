@@ -5,14 +5,14 @@ VERSION < v"0.7.0-beta2.199" && __precompile__()
 module ZMQ
 
 using Compat
-import Base: unsafe_convert, unsafe_string
 using Compat.Libdl, Compat.Libc
 using Base.Libc: EAGAIN
 @static if VERSION < v"0.7.0-DEV.2359"
-    import Base.Filesystem: UV_READABLE, uv_pollcb, _FDWatcher
+    using Base.Filesystem: UV_READABLE, uv_pollcb, _FDWatcher
 else
-    import FileWatching: UV_READABLE, uv_pollcb, _FDWatcher
+    using FileWatching: UV_READABLE, uv_pollcb, _FDWatcher
 end
+using Compat.Sockets: connect, bind, send, recv
 
 const depsjl_path = joinpath(dirname(@__FILE__), "..", "deps", "deps.jl")
 if !isfile(depsjl_path)
@@ -29,13 +29,6 @@ else
     end
 end
 
-import Base:
-    convert, get,
-    length, size, stride, similar, getindex, setindex!,
-    fd, wait, notify, close
-
-import Compat.Sockets: connect, bind, send, recv
-
 export
     #Types
     StateError,Context,Socket,Message,
@@ -50,6 +43,7 @@ export
 include("constants.jl")
 include("error.jl")
 include("socket.jl")
+include("sockopts.jl")
 include("context.jl")
 include("message.jl")
 
