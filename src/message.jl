@@ -160,7 +160,7 @@ function send(socket::Socket, zmsg::Message, SNDMORE::Bool=false)
     while true
         # TODO: change `Any` to `Ref{Message}` when 0.6 support is dropped.
         rc = ccall((:zmq_msg_send, libzmq), Cint, (Any, Ptr{Cvoid}, Cint),
-                    zmsg, socket.data, (ZMQ_SNDMORE*SNDMORE) | ZMQ_DONTWAIT)
+                    zmsg, socket, (ZMQ_SNDMORE*SNDMORE) | ZMQ_DONTWAIT)
         if rc == -1
             zmq_errno() == EAGAIN || throw(StateError(jl_zmq_error_str()))
             while (get_events(socket) & POLLOUT) == 0
@@ -196,7 +196,7 @@ function recv(socket::Socket)
     while true
         # TODO: change `Any` to `Ref{Message}` when 0.6 support is dropped.
         rc = ccall((:zmq_msg_recv, libzmq), Cint, (Any, Ptr{Cvoid}, Cint),
-                    zmsg, socket.data, ZMQ_DONTWAIT)
+                    zmsg, socket, ZMQ_DONTWAIT)
         if rc == -1
             zmq_errno() == EAGAIN || throw(StateError(jl_zmq_error_str()))
             while (get_events(socket) & POLLIN) == 0

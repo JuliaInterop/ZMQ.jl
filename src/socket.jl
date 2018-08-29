@@ -5,7 +5,7 @@ mutable struct Socket
 
     # ctx should be ::Context, but forward type references are not allowed
     function Socket(ctx, typ::Integer)
-        p = ccall((:zmq_socket, libzmq), Ptr{Cvoid}, (Ptr{Cvoid}, Cint), ctx.data, typ)
+        p = ccall((:zmq_socket, libzmq), Ptr{Cvoid}, (Ptr{Cvoid}, Cint), ctx, typ)
         if p == C_NULL
             throw(StateError(jl_zmq_error_str()))
         end
@@ -18,18 +18,18 @@ mutable struct Socket
     Socket(typ::Integer) = Socket(context(), typ)
 end
 
+Base.unsafe_convert(::Type{Ptr{Cvoid}}, s::Socket) = s.data
+
 function close(socket::Socket)
     if socket.data != C_NULL
-        data = socket.data
-        socket.data = C_NULL
         close(socket.pollfd, #=readable=#true, #=writable=#false)
-        rc = ccall((:zmq_close, libzmq), Cint,  (Ptr{Cvoid},), data)
+        rc = ccall((:zmq_close, libzmq), Cint,  (Ptr{Cvoid},), socket)
+        socket.data = C_NULL
         if rc != 0
             throw(StateError(jl_zmq_error_str()))
         end
     end
 end
-
 
 
 # Getting and setting socket options
@@ -72,7 +72,7 @@ for (fset, fget, k, p) in [
             ($p)[1] = option_val
             rc = ccall((:zmq_setsockopt, libzmq), Cint,
                        (Ptr{Cvoid}, Cint, Ptr{Cvoid}, UInt),
-                       socket.data, $k, $p, sizeof(eltype($p)))
+                       socket, $k, $p, sizeof(eltype($p)))
             if rc != 0
                 throw(StateError(jl_zmq_error_str()))
             end
@@ -83,7 +83,7 @@ for (fset, fget, k, p) in [
             ($sz)[1] = sizeof(eltype($p))
             rc = ccall((:zmq_getsockopt, libzmq), Cint,
                        (Ptr{Cvoid}, Cint, Ptr{Cvoid}, Ptr{UInt}),
-                       socket.data, $k, $p, $sz)
+                       socket, $k, $p, $sz)
             if rc != 0
                 throw(StateError(jl_zmq_error_str()))
             end
@@ -105,7 +105,7 @@ for (f,k) in ((:subscribe,6), (:unsubscribe,7))
         function $f_(socket::Socket, filter::Ptr{T}, len::Integer) where {T}
             rc = ccall((:zmq_setsockopt, libzmq), Cint,
                        (Ptr{Cvoid}, Cint, Ptr{T}, UInt),
-                       socket.data, $k, filter, len)
+                       socket, $k, filter, len)
             if rc != 0
                 throw(StateError(jl_zmq_error_str()))
             end
@@ -145,7 +145,7 @@ for (fset, fget, k) in [
             end
             rc = ccall((:zmq_setsockopt, libzmq), Cint,
                        (Ptr{Cvoid}, Cint, Ptr{UInt8}, UInt),
-                       socket.data, $k, option_val, length(option_val))
+                       socket, $k, option_val, length(option_val))
             if rc != 0
                 throw(StateError(jl_zmq_error_str()))
             end
@@ -156,7 +156,7 @@ for (fset, fget, k) in [
             ($sz)[1] = length($u8ap)
             rc = ccall((:zmq_getsockopt, libzmq), Cint,
                        (Ptr{Cvoid}, Cint, Ptr{UInt8}, Ptr{UInt}),
-                       socket.data, $k, $u8ap, $sz)
+                       socket, $k, $u8ap, $sz)
             if rc != 0
                 throw(StateError(jl_zmq_error_str()))
             end
@@ -166,14 +166,14 @@ for (fset, fget, k) in [
 end
 
 function bind(socket::Socket, endpoint::AbstractString)
-    rc = ccall((:zmq_bind, libzmq), Cint, (Ptr{Cvoid}, Ptr{UInt8}), socket.data, endpoint)
+    rc = ccall((:zmq_bind, libzmq), Cint, (Ptr{Cvoid}, Ptr{UInt8}), socket, endpoint)
     if rc != 0
         throw(StateError(jl_zmq_error_str()))
     end
 end
 
 function connect(socket::Socket, endpoint::AbstractString)
-    rc=ccall((:zmq_connect, libzmq), Cint, (Ptr{Cvoid}, Ptr{UInt8}), socket.data, endpoint)
+    rc=ccall((:zmq_connect, libzmq), Cint, (Ptr{Cvoid}, Ptr{UInt8}), socket, endpoint)
     if rc != 0
         throw(StateError(jl_zmq_error_str()))
     end

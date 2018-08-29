@@ -29,6 +29,8 @@ mutable struct Context
     end
 end
 
+Base.unsafe_convert(::Type{Ptr{Cvoid}}, c::Context) = c.data
+
 # define a global context that is initialized lazily
 # and is used by default in Socket constructors, to
 # save 99% of users from the low-level need to set up
@@ -54,8 +56,6 @@ end
 
 function close(ctx::Context)
     if ctx.data != C_NULL # don't close twice!
-        data = ctx.data
-        ctx.data = C_NULL
         for w in ctx.sockets
             s = w.value
             if s isa Socket && s.data != C_NULL
@@ -64,7 +64,8 @@ function close(ctx::Context)
             end
         end
         empty!(ctx.sockets)
-        rc = ccall((:zmq_ctx_destroy, libzmq), Cint,  (Ptr{Cvoid},), data)
+        rc = ccall((:zmq_ctx_destroy, libzmq), Cint,  (Ptr{Cvoid},), ctx)
+        ctx.data = C_NULL
         if rc != 0
             throw(StateError(jl_zmq_error_str()))
         end
@@ -73,7 +74,7 @@ end
 term(ctx::Context) = close(ctx)
 
 function get(ctx::Context, option::Integer)
-    val = ccall((:zmq_ctx_get, libzmq), Cint, (Ptr{Cvoid}, Cint), ctx.data, option)
+    val = ccall((:zmq_ctx_get, libzmq), Cint, (Ptr{Cvoid}, Cint), ctx, option)
     if val < 0
         throw(StateError(jl_zmq_error_str()))
     end
@@ -81,7 +82,7 @@ function get(ctx::Context, option::Integer)
 end
 
 function set(ctx::Context, option::Integer, value::Integer)
-    rc = ccall((:zmq_ctx_set, libzmq), Cint, (Ptr{Cvoid}, Cint, Cint), ctx.data, option, value)
+    rc = ccall((:zmq_ctx_set, libzmq), Cint, (Ptr{Cvoid}, Cint, Cint), ctx, option, value)
     if rc != 0
         throw(StateError(jl_zmq_error_str()))
     end
