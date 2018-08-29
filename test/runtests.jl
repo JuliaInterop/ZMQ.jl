@@ -77,6 +77,5 @@ Compat.@info("Testing with ZMQ version $(ZMQ.version)")
 	end
 
 	# ZMQ.close(s1); ZMQ.close(s2) # should happen when context is closed
-	println("###### s1 = $s1\n####### s2 = $s2")
 	ZMQ.close(ZMQ._context) # immediately close global context rather than waiting for exit
 end
