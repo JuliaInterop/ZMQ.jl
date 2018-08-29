@@ -11,12 +11,11 @@ Compat.@info("Testing with ZMQ version $(ZMQ.version)")
 	#try to create socket with expired context
 	@test_throws StateError Socket(ctx, PUB)
 
-	ctx2=Context()
-	s=Socket(ctx2, PUB)
+	s=Socket(PUB)
 	@test s isa Socket
 	ZMQ.close(s)
 
-	s1=Socket(ctx2, REP)
+	s1=Socket(REP)
 	ZMQ.set_sndhwm(s1, 1000)
 	ZMQ.set_linger(s1, 1)
 	ZMQ.set_identity(s1, "abcd")
@@ -26,7 +25,7 @@ Compat.@info("Testing with ZMQ version $(ZMQ.version)")
 	@test ZMQ.get_linger(s1)::Integer == 1
 	@test ZMQ.ismore(s1) == false
 
-	s2=Socket(ctx2, REQ)
+	s2=Socket(REQ)
 	@test ZMQ.get_type(s1) == REP
 	@test ZMQ.get_type(s2) == REQ
 
@@ -77,7 +76,7 @@ Compat.@info("Testing with ZMQ version $(ZMQ.version)")
 		finalize(m)
 	end
 
-	ZMQ.close(s1)
-	ZMQ.close(s2)
-	ZMQ.close(ctx2)
+	# ZMQ.close(s1); ZMQ.close(s2) # should happen when context is closed
+	println("###### s1 = $s1\n####### s2 = $s2")
+	ZMQ.close(ZMQ._context) # immediately close global context rather than waiting for exit
 end

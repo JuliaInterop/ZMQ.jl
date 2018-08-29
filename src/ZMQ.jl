@@ -66,6 +66,9 @@ function __init__()
         error("ZMQ version $version < 3 is not supported")
     end
     gc_free_fn_c[] = @cfunction(gc_free_fn, Cint, (Ptr{Cvoid}, Ptr{Cvoid}))
+    atexit() do
+        close(_context)
+    end
 end
 
 end

@@ -15,6 +15,7 @@ mutable struct Socket
         push!(ctx.sockets, WeakRef(socket))
         return socket
     end
+    Socket(typ::Integer) = Socket(context(), typ)
 end
 
 function close(socket::Socket)
