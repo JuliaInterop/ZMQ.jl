@@ -1,33 +1,18 @@
 # Support for ZeroMQ, a network and interprocess communication library
 
-VERSION < v"0.7.0-beta2.199" && __precompile__()
-
 module ZMQ
 
-using Compat
-using Compat.Libdl, Compat.Libc
 using Base.Libc: EAGAIN
-@static if VERSION < v"0.7.0-DEV.2359"
-    using Base.Filesystem: UV_READABLE, uv_pollcb, _FDWatcher
-else
-    using FileWatching: UV_READABLE, uv_pollcb, _FDWatcher
-end
-using Compat.Sockets: connect, bind, send, recv
+using FileWatching: UV_READABLE, uv_pollcb, _FDWatcher
+import Sockets
+using Sockets: connect, bind, send, recv
+import Base.GC: @preserve
 
 const depsjl_path = joinpath(dirname(@__FILE__), "..", "deps", "deps.jl")
 if !isfile(depsjl_path)
     error("Blosc not installed properly, run Pkg.build(\"ZMQ\"), restart Julia and try again")
 end
 include(depsjl_path)
-
-# use GC.@preserve macro if it exists, otherwise nop
-if isdefined(Base, :GC)
-    import Base.GC: @preserve
-else
-    macro preserve(args...)
-        esc(args[end])
-    end
-end
 
 export
     #Types
@@ -41,6 +26,7 @@ export
 
 
 include("constants.jl")
+include("optutil.jl")
 include("error.jl")
 include("socket.jl")
 include("sockopts.jl")

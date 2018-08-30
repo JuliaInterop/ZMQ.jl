@@ -24,7 +24,7 @@ function gc_free_fn(data::Ptr{Cvoid}, hint::Ptr{Cvoid})
 end
 
 ## Messages ##
-@compat primitive type MsgPadding 64 * 8 end
+primitive type MsgPadding 64 * 8 end
 
 mutable struct Message <: AbstractArray{UInt8,1}
     # Matching the declaration in the header: char _[64];
@@ -34,25 +34,23 @@ mutable struct Message <: AbstractArray{UInt8,1}
     # Create an empty message (for receive)
     function Message()
         zmsg = new()
-        zmsg.handle = C_NULL
-        # TODO: change `Any` to `Ref{Message}` when 0.6 support is dropped.
-        rc = ccall((:zmq_msg_init, libzmq), Cint, (Any,), zmsg)
+        setfield!(zmsg, :handle, C_NULL)
+        rc = ccall((:zmq_msg_init, libzmq), Cint, (Ref{Message},), zmsg)
         if rc != 0
             throw(StateError(jl_zmq_error_str()))
         end
-        @compat finalizer(close, zmsg)
+        finalizer(close, zmsg)
         return zmsg
     end
     # Create a message with a given buffer size (for send)
     function Message(len::Integer)
         zmsg = new()
-        zmsg.handle = C_NULL
-        # TODO: change `Any` to `Ref{Message}` when 0.6 support is dropped.
-        rc = ccall((:zmq_msg_init_size, libzmq), Cint, (Any, Csize_t), zmsg, len)
+        setfield!(zmsg, :handle, C_NULL)
+        rc = ccall((:zmq_msg_init_size, libzmq), Cint, (Ref{Message}, Csize_t), zmsg, len)
         if rc != 0
             throw(StateError(jl_zmq_error_str()))
         end
-        @compat finalizer(close, zmsg)
+        finalizer(close, zmsg)
         return zmsg
     end
 
@@ -62,14 +60,13 @@ mutable struct Message <: AbstractArray{UInt8,1}
     # we can hold a reference to it until zeromq is done with the buffer.
     function Message(origin::Any, m::Ptr{T}, len::Integer) where {T}
         zmsg = new()
-        zmsg.handle = gc_protect_handle(origin)
-        # TODO: change `Any` to `Ref{Message}` when 0.6 support is dropped.
-        rc = ccall((:zmq_msg_init_data, libzmq), Cint, (Any, Ptr{T}, Csize_t, Ptr{Cvoid}, Ptr{Cvoid}),
-                   zmsg, m, len, gc_free_fn_c[], zmsg.handle)
+        setfield!(zmsg, :handle, gc_protect_handle(origin))
+        rc = ccall((:zmq_msg_init_data, libzmq), Cint, (Ref{Message}, Ptr{T}, Csize_t, Ptr{Cvoid}, Ptr{Cvoid}),
+                   zmsg, m, len, gc_free_fn_c[], getfield(zmsg, :handle))
         if rc != 0
             throw(StateError(jl_zmq_error_str()))
         end
-        @compat finalizer(close, zmsg)
+        finalizer(close, zmsg)
         return zmsg
     end
 
@@ -90,15 +87,13 @@ end
 
 # check whether zeromq has called our free-function, i.e. whether
 # we are save to reclaim ownership of any buffer object
-isfreed(m::Message) = haskey(gc_protect, m.handle)
+isfreed(m::Message) = haskey(gc_protect, getfield(m, :handle))
 
 # AbstractArray behaviors:
 Base.similar(a::Message, ::Type{T}, dims::Dims) where {T} = Array{T}(undef, dims) # ?
-# TODO: change `Any` to `Ref{Message}` when 0.6 support is dropped.
-Base.length(zmsg::Message) = Int(ccall((:zmq_msg_size, libzmq), Csize_t, (Any,), zmsg))
+Base.length(zmsg::Message) = Int(ccall((:zmq_msg_size, libzmq), Csize_t, (Ref{Message},), zmsg))
 Base.size(zmsg::Message) = (length(zmsg),)
-# TODO: change `Any` to `Ref{Message}` when 0.6 support is dropped.
-Base.unsafe_convert(::Type{Ptr{UInt8}}, zmsg::Message) = ccall((:zmq_msg_data, libzmq), Ptr{UInt8}, (Any,), zmsg)
+Base.unsafe_convert(::Type{Ptr{UInt8}}, zmsg::Message) = ccall((:zmq_msg_data, libzmq), Ptr{UInt8}, (Ref{Message},), zmsg)
 function Base.getindex(a::Message, i::Integer)
     @boundscheck if i < 1 || i > length(a)
         throw(BoundsError())
@@ -125,28 +120,42 @@ end
 # Close a message. You should not need to call this manually (let the
 # finalizer do it).
 function Base.close(zmsg::Message)
-    # TODO: change `Any` to `Ref{Message}` when 0.6 support is dropped.
-    rc = ccall((:zmq_msg_close, libzmq), Cint, (Any,), zmsg)
+    rc = ccall((:zmq_msg_close, libzmq), Cint, (Ref{Message},), zmsg)
     if rc != 0
         throw(StateError(jl_zmq_error_str()))
     end
 end
 
-function Base.get(zmsg::Message, property::Integer)
-    # TODO: change `Any` to `Ref{Message}` when 0.6 support is dropped.
-    val = ccall((:zmq_msg_get, libzmq), Cint, (Any, Cint), zmsg, property)
+function _get(zmsg::Message, property::Integer)
+    val = ccall((:zmq_msg_get, libzmq), Cint, (Ref{Message}, Cint), zmsg, property)
     if val < 0
         throw(StateError(jl_zmq_error_str()))
     end
     val
 end
-function set(zmsg::Message, property::Integer, value::Integer)
-    # TODO: change `Any` to `Ref{Message}` when 0.6 support is dropped.
-    rc = ccall((:zmq_msg_set, libzmq), Cint, (Any, Cint, Cint), zmsg, property, value)
+function _set(zmsg::Message, property::Integer, value::Integer)
+    rc = ccall((:zmq_msg_set, libzmq), Cint, (Ref{Message}, Cint, Cint), zmsg, property, value)
     if rc < 0
         throw(StateError(jl_zmq_error_str()))
     end
 end
+Base.propertynames(zmsg::Message) = (:more)
+function Base.getproperty(zmsg::Message, name::Symbol)
+    if name === :more
+        return _get(zmsg, MORE)
+    else
+        error("Message has no field $name")
+    end
+end
+function Base.setproperty!(zmsg::Message, name::Symbol, value::Integer)
+    # Currently the zmq_msg_set() function does not support any property names
+    error("Message has no writable field $name")
+end
+function Base.get(zmsg::Message, option::Integer)
+    Base.depwarn("get(zmsg, option) is deprecated; use zmsg.option instead", :get)
+    return _get(zmsg, option)
+end
+@deprecate set(zmsg::Message, property::Integer, value::Integer) _set(zmsg, property, value)
 
 ## Send/receive messages
 #
@@ -156,20 +165,19 @@ end
 #   send(socket, zmsg)
 #   zmsg = recv(socket)
 
-function Compat.Sockets.send(socket::Socket, zmsg::Message, SNDMORE::Bool=false)
+function Sockets.send(socket::Socket, zmsg::Message, SNDMORE::Bool=false)
     while true
-        # TODO: change `Any` to `Ref{Message}` when 0.6 support is dropped.
-        rc = ccall((:zmq_msg_send, libzmq), Cint, (Any, Ptr{Cvoid}, Cint),
+        rc = ccall((:zmq_msg_send, libzmq), Cint, (Ref{Message}, Ptr{Cvoid}, Cint),
                     zmsg, socket, (ZMQ_SNDMORE*SNDMORE) | ZMQ_DONTWAIT)
         if rc == -1
             zmq_errno() == EAGAIN || throw(StateError(jl_zmq_error_str()))
-            while (get_events(socket) & POLLOUT) == 0
+            while (socket.events & POLLOUT) == 0
                 wait(socket)
             end
         else
-            notify_is_expensive = !isempty(socket.pollfd.notify.waitq)
+            notify_is_expensive = !isempty(getfield(socket,:pollfd).notify.waitq)
             if notify_is_expensive
-                get_events(socket) != 0 && notify(socket)
+                socket.events != 0 && notify(socket)
             end
             break
         end
@@ -177,35 +185,34 @@ function Compat.Sockets.send(socket::Socket, zmsg::Message, SNDMORE::Bool=false)
 end
 
 # strings are immutable, so we can send them zero-copy by default
-Compat.Sockets.send(socket::Socket, msg::AbstractString, SNDMORE::Bool=false) = send(socket, Message(msg), SNDMORE)
+Sockets.send(socket::Socket, msg::AbstractString, SNDMORE::Bool=false) = send(socket, Message(msg), SNDMORE)
 
 # Make a copy of arrays before sending, by default, since it is too
 # dangerous to require that the array not change until ZMQ is done with it.
 # For zero-copy array messages, construct a Message explicitly.
-Compat.Sockets.send(socket::Socket, msg::AbstractArray, SNDMORE::Bool=false) = send(socket, Message(copy(msg)), SNDMORE)
+Sockets.send(socket::Socket, msg::AbstractArray, SNDMORE::Bool=false) = send(socket, Message(copy(msg)), SNDMORE)
 
-function Compat.Sockets.send(f::Function, socket::Socket, SNDMORE::Bool=false)
+function Sockets.send(f::Function, socket::Socket, SNDMORE::Bool=false)
     io = IOBuffer()
     f(io)
     send(socket, Message(io), SNDMORE)
 end
 
-function Compat.Sockets.recv(socket::Socket)
+function Sockets.recv(socket::Socket)
     zmsg = Message()
     rc = -1
     while true
-        # TODO: change `Any` to `Ref{Message}` when 0.6 support is dropped.
-        rc = ccall((:zmq_msg_recv, libzmq), Cint, (Any, Ptr{Cvoid}, Cint),
+        rc = ccall((:zmq_msg_recv, libzmq), Cint, (Ref{Message}, Ptr{Cvoid}, Cint),
                     zmsg, socket, ZMQ_DONTWAIT)
         if rc == -1
             zmq_errno() == EAGAIN || throw(StateError(jl_zmq_error_str()))
-            while (get_events(socket) & POLLIN) == 0
+            while (socket.events & POLLIN) == 0
                 wait(socket)
             end
         else
-            notify_is_expensive = !isempty(socket.pollfd.notify.waitq)
+            notify_is_expensive = !isempty(getfield(socket,:pollfd).notify.waitq)
             if notify_is_expensive
-                get_events(socket) != 0 && notify(socket)
+                socket.events != 0 && notify(socket)
             end
             break
         end

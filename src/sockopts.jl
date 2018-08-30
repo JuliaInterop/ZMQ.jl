@@ -24,10 +24,10 @@ for (fset, fget, k, T) in [
     (:set_tcp_keepalive_intvl,     :get_tcp_keepalive_intvl,     37,   Cint)
     (:set_rcvtimeo,                :get_rcvtimeo,                27,   Cint)
     (:set_sndtimeo,                :get_sndtimeo,                28,   Cint)
-    (nothing,                      :get_fd,                      14, Compat.Sys.iswindows() ? Ptr{Cvoid} : Cint)
+    (nothing,                      :get_fd,                      14, Sys.iswindows() ? Ptr{Cvoid} : Cint)
     ]
     if fset != nothing
-        @eval function ($fset)(socket::Socket, option_val::Integer)
+        @eval function $(Symbol("_",fset))(socket::Socket, option_val::Integer)
             rc = ccall((:zmq_setsockopt, libzmq), Cint,
                        (Ptr{Cvoid}, Cint, Ref{$T}, Csize_t),
                        socket, $k, option_val, sizeof($T))
@@ -35,9 +35,11 @@ for (fset, fget, k, T) in [
                 throw(StateError(jl_zmq_error_str()))
             end
         end
+        prop = QuoteNode(Symbol(String(fset)[5:end]))
+        @eval @deprecate $fset(socket::Socket, option_val::Integer) setproperty!(socket, $prop, option_val)
     end
     if fget != nothing
-        @eval function ($fget)(socket::Socket)
+        @eval function $(Symbol("_",fget))(socket::Socket)
             val = Ref{$T}()
             rc = ccall((:zmq_getsockopt, libzmq), Cint,
                        (Ptr{Cvoid}, Cint, Ref{$T}, Ref{Csize_t}),
@@ -47,14 +49,16 @@ for (fset, fget, k, T) in [
             end
             return Int(val[])
         end
+        prop = QuoteNode(Symbol(String(fget)[5:end]))
+        @eval @deprecate $fget(socket::Socket) getproperty(socket, $prop)
     end
 end
 
 # For some functions, the publicly-visible versions should require &
 # return boolean:
-get_rcvmore(socket::Socket) = Bool(_zmq_getsockopt_rcvmore(socket))
-# And a convenience function
-ismore(socket::Socket) = get_rcvmore(socket)
+_get_rcvmore(socket::Socket) = Bool(__zmq_getsockopt_rcvmore(socket))
+@deprecate get_rcvmore(socket::Socket) getproperty(socket, :rcvmore)
+@deprecate ismore(socket::Socket) getproperty(socket, :rcvmore)
 
 # subscribe/unsubscribe options take an arbitrary byte array
 for (f,k) in ((:subscribe,6), (:unsubscribe,7))
@@ -75,13 +79,11 @@ for (f,k) in ((:subscribe,6), (:unsubscribe,7))
     end
 end
 
-# Socket options of string type
+# string properties
 for (fset, fget, k) in [
-    (:set_identity,                :get_identity,                5)
-    (:set_subscribe,               nothing,                      6)
-    (:set_unsubscribe,             nothing,                      7)
-    (nothing,                      :get_last_endpoint,          32)
-    (:set_tcp_accept_filter,       nothing,                     38)
+    (:_set_routing_id,           :_get_routing_id,              5)
+    (nothing,                    :_get_last_endpoint,          32)
+    # (:_set_tcp_accept_filter,       nothing,                     38) #  deprecated
     ]
     if fset != nothing
         @eval function ($fset)(socket::Socket, option_val::String)
@@ -110,4 +112,26 @@ for (fset, fget, k) in [
             return String(resize!(buf, len[]))
         end
     end
+end
+@deprecate get_identity(socket::Socket) getproperty(socket, :routing_id)
+@deprecate set_identity(socket::Socket, val) setproperty!(socket, :routing_id, val)
+
+# getproperty/setproperty API for socket properties
+const sockprops = (:affinity, :type, :linger, :reconnect_ivl, :backlog, :reconnect_ivl_max,
+                   :rate, :recovery_ivl, :sndbuf, :rcvbuf, :rcvmore, :events, :maxmsgsize,
+                   :sndhwm, :rcvhwm, :multicast_hops, :ipv4only,
+                   :tcp_keepalive, :tcp_keepalive_idle, :tcp_keepalive_cnt, :tcp_keepalive_intvl,
+                   :rcvtimeo, :sndtimeo, :fd, :routing_id, :last_endpoint)
+
+Base.propertynames(::Socket) = sockprops
+@eval function Base.getproperty(value::Socket, name::Symbol)
+    $(propexpression(filter!(p -> isdefined(@__MODULE__, Symbol("_get_", p)), collect(sockprops))) do p
+        :($(Symbol("_get_", p))(value))
+    end)
+end
+@eval function Base.setproperty!(value::Socket, name::Symbol, x)
+    $(propexpression(filter!(p -> isdefined(@__MODULE__, Symbol("_set_", p)), collect(sockprops))) do p
+        :($(Symbol("_set_", p))(value, x))
+    end)
+    return x
 end
