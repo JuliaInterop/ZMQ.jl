@@ -46,6 +46,15 @@ end
 	ZMQ.send(s1, Message("test response"))
 	@test unsafe_string(ZMQ.recv(s2)) == "test response"
 
+	ZMQ.send(s2, "test request 2")
+	@test ZMQ.recv(s1, String) == "test request 2"
+	ZMQ.send(s1, Vector(codeunits("test response 2")))
+	@test String(ZMQ.recv(s2, Vector{UInt8})) == "test response 2"
+	ZMQ.send(s2, 3.14159)
+	@test ZMQ.recv(s1, Float64) === 3.14159
+	ZMQ.send(s1, [314159, 12345])
+	@test ZMQ.recv(s2, Vector{Int}) == [314159, 12345]
+
 	# Test task-blocking behavior
 	c = Base.Condition()
 	global msg_sent = false
@@ -65,16 +74,37 @@ end
 	ZMQ.send(s1, Message("test response"))
 	wait(c)
 
+	# Test _Message task-blocking behavior, similar to above
+	c = Base.Condition()
+	msg_sent = false
+	@async begin
+		global msg_sent
+		sleep(0.5)
+		msg_sent = true
+		ZMQ.send(s2, "another test request")
+		@test ZMQ.recv(s2, String) == "another test response"
+		notify(c)
+	end
+	@test ZMQ.recv(s1, String) == "another test request"
+	@test msg_sent == true
+	ZMQ.send(s1, "another test response")
+	wait(c)
+
 	ZMQ.send(s2, Message("another test request"))
 	msg = ZMQ.recv(s1)
 	o=convert(IOStream, msg)
 	seek(o, 0)
 	@test String(take!(o)) == "another test request"
+	ZMQ.send(s1) do io
+		print(io, "buffer ")
+		print(io, "this")
+	end
+	@test String(take!(ZMQ.recv(s2, IOBuffer))) == "buffer this"
 
 	@testset "Message AbstractVector interface" begin
 		m = Message("1")
 		@test m[1]==0x31
-		m[1]=0x32
+		@test (m[1]=0x32) === 0x32
 		@test unsafe_string(m)=="2"
 		finalize(m)
 	end

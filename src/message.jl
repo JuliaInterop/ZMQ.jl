@@ -1,4 +1,6 @@
+## High-level Message object for sending/receiving ZMQ messages in shared buffers.
 
+include("_message.jl")
 
 # in order to support zero-copy messages that share data with Julia
 # arrays, we need to hold a reference to the Julia object in a dictionary
@@ -6,10 +8,9 @@
 # collected.  The gc_protect dictionary is keyed by a uv_async_t* pointer,
 # used in uv_async_send to tell Julia to when zeromq is done with the data.
 const gc_protect = Dict{Ptr{Cvoid},Any}()
-# 0.2 compatibility
-gc_protect_cb(work, status) = gc_protect_cb(work)
-close_handle(work) = Base.close(work)
-gc_protect_cb(work) = (pop!(gc_protect, work.handle, nothing); close_handle(work))
+
+# callback argument for AsyncCondition
+gc_protect_cb(work) = (pop!(gc_protect, work.handle, nothing); Base.close(work))
 
 function gc_protect_handle(obj::Any)
     work = Base.AsyncCondition(gc_protect_cb)
@@ -23,12 +24,9 @@ function gc_free_fn(data::Ptr{Cvoid}, hint::Ptr{Cvoid})
     ccall(:uv_async_send,Cint,(Ptr{Cvoid},),hint)
 end
 
-## Messages ##
-primitive type MsgPadding 64 * 8 end
-
 mutable struct Message <: AbstractArray{UInt8,1}
     # Matching the declaration in the header: char _[64];
-    w_padding::MsgPadding
+    w_padding::_Message
     handle::Ptr{Cvoid} # index into gc_protect, if any
 
     # Create an empty message (for receive)
@@ -61,9 +59,11 @@ mutable struct Message <: AbstractArray{UInt8,1}
     function Message(origin::Any, m::Ptr{T}, len::Integer) where {T}
         zmsg = new()
         setfield!(zmsg, :handle, gc_protect_handle(origin))
+        gc_free_fn_c = @cfunction(gc_free_fn, Cint, (Ptr{Cvoid}, Ptr{Cvoid}))
         rc = ccall((:zmq_msg_init_data, libzmq), Cint, (Ref{Message}, Ptr{T}, Csize_t, Ptr{Cvoid}, Ptr{Cvoid}),
-                   zmsg, m, len, gc_free_fn_c[], getfield(zmsg, :handle))
+                   zmsg, m, len, gc_free_fn_c, getfield(zmsg, :handle))
         if rc != 0
+            gc_free_fn(C_NULL, getfield(zmsg, :handle)) # don't leak memory on error
             throw(StateError(jl_zmq_error_str()))
         end
         finalizer(close, zmsg)
@@ -105,6 +105,7 @@ function Base.setindex!(a::Message, v, i::Integer)
         throw(BoundsError())
     end
     @preserve a unsafe_store!(pointer(a), v, i)
+    return v
 end
 
 # Convert message to string (copies data)
@@ -117,6 +118,7 @@ function Base.convert(::Type{IOStream}, zmsg::Message)
     write(s, zmsg)
     return s
 end
+
 # Close a message. You should not need to call this manually (let the
 # finalizer do it).
 function Base.close(zmsg::Message)
@@ -124,6 +126,7 @@ function Base.close(zmsg::Message)
     if rc != 0
         throw(StateError(jl_zmq_error_str()))
     end
+    return nothing
 end
 
 function _get(zmsg::Message, property::Integer)
@@ -156,66 +159,3 @@ function Base.get(zmsg::Message, option::Integer)
     return _get(zmsg, option)
 end
 @deprecate set(zmsg::Message, property::Integer, value::Integer) _set(zmsg, property, value)
-
-## Send/receive messages
-#
-# Julia defines two types of ZMQ messages: "raw" and "serialized". A "raw"
-# message is just a plain ZeroMQ message, used for sending a sequence
-# of bytes. You send these with the following:
-#   send(socket, zmsg)
-#   zmsg = recv(socket)
-
-function Sockets.send(socket::Socket, zmsg::Message, SNDMORE::Bool=false)
-    while true
-        rc = ccall((:zmq_msg_send, libzmq), Cint, (Ref{Message}, Ptr{Cvoid}, Cint),
-                    zmsg, socket, (ZMQ_SNDMORE*SNDMORE) | ZMQ_DONTWAIT)
-        if rc == -1
-            zmq_errno() == EAGAIN || throw(StateError(jl_zmq_error_str()))
-            while (socket.events & POLLOUT) == 0
-                wait(socket)
-            end
-        else
-            notify_is_expensive = !isempty(getfield(socket,:pollfd).notify.waitq)
-            if notify_is_expensive
-                socket.events != 0 && notify(socket)
-            end
-            break
-        end
-    end
-end
-
-# strings are immutable, so we can send them zero-copy by default
-Sockets.send(socket::Socket, msg::AbstractString, SNDMORE::Bool=false) = send(socket, Message(msg), SNDMORE)
-
-# Make a copy of arrays before sending, by default, since it is too
-# dangerous to require that the array not change until ZMQ is done with it.
-# For zero-copy array messages, construct a Message explicitly.
-Sockets.send(socket::Socket, msg::AbstractArray, SNDMORE::Bool=false) = send(socket, Message(copy(msg)), SNDMORE)
-
-function Sockets.send(f::Function, socket::Socket, SNDMORE::Bool=false)
-    io = IOBuffer()
-    f(io)
-    send(socket, Message(io), SNDMORE)
-end
-
-function Sockets.recv(socket::Socket)
-    zmsg = Message()
-    rc = -1
-    while true
-        rc = ccall((:zmq_msg_recv, libzmq), Cint, (Ref{Message}, Ptr{Cvoid}, Cint),
-                    zmsg, socket, ZMQ_DONTWAIT)
-        if rc == -1
-            zmq_errno() == EAGAIN || throw(StateError(jl_zmq_error_str()))
-            while (socket.events & POLLIN) == 0
-                wait(socket)
-            end
-        else
-            notify_is_expensive = !isempty(getfield(socket,:pollfd).notify.waitq)
-            if notify_is_expensive
-                socket.events != 0 && notify(socket)
-            end
-            break
-        end
-    end
-    return zmsg
-end
