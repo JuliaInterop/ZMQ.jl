@@ -32,8 +32,7 @@ include("socket.jl")
 include("sockopts.jl")
 include("context.jl")
 include("message.jl")
-
-const gc_free_fn_c = Ref{Ptr{Cvoid}}()
+include("comm.jl")
 
 function __init__()
     check_deps()
@@ -45,7 +44,6 @@ function __init__()
     if version < v"3"
         error("ZMQ version $version < 3 is not supported")
     end
-    gc_free_fn_c[] = @cfunction(gc_free_fn, Cint, (Ptr{Cvoid}, Ptr{Cvoid}))
     atexit() do
         close(_context)
     end

@@ -19,21 +19,22 @@ using ZMQ
 s1=Socket(REP)
 s2=Socket(REQ)
 
-ZMQ.bind(s1, "tcp://*:5555")
-ZMQ.connect(s2, "tcp://localhost:5555")
+bind(s1, "tcp://*:5555")
+connect(s2, "tcp://localhost:5555")
 
-ZMQ.send(s2, Message("test request"))
-msg = ZMQ.recv(s1)
-out=convert(IOStream, msg)
-seek(out,0)
-#read out::MemIO as usual, eg. read(out,...) or takebuf_string(out)
-#or, conveniently, use unsafe_string(msg) to retrieve a string
-
-ZMQ.send(s1, Message("test response"))
+send(s2, "test request")
+msg = recv(s1, String)
+send(s1, "test response")
 close(s1)
 close(s2)
-
 ```
+
+The `send(socket, x)` and `recv(socket, SomeType)` functions make an extra copy of the data when converting
+between ZMQ and Julia.   Alternatively, for large data sets (e.g. very large arrays or long strings), it can
+be preferable to share data, with `send(socket, Message(x))` and `msg = recv(Message)`, where the `msg::Message`
+object acts like an array of bytes; this involves some overhead so it may not be optimal for short messages.
+
+(Help in writing more detailed documentation would be welcome!)
 
 ## Troubleshooting
 
