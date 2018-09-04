@@ -2,6 +2,7 @@
 
 module ZMQ
 
+import Libdl
 using Base.Libc: EAGAIN
 using FileWatching: UV_READABLE, uv_pollcb, _FDWatcher
 import Sockets
