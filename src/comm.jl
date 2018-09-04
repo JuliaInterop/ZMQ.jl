@@ -8,9 +8,9 @@ msg_send(socket::Socket, zmsg::_MessageOrRef, flags::Integer) =
 msg_send(socket::Socket, zmsg::Message, flags::Integer) =
     ccall((:zmq_msg_send, libzmq), Cint, (Ref{Message}, Ptr{Cvoid}, Cint), zmsg, socket, flags)
 
-function _send(socket::Socket, zmsg, SNDMORE::Bool=false)
+function _send(socket::Socket, zmsg, more::Bool=false)
     while true
-        if -1 == msg_send(socket, zmsg, (ZMQ_SNDMORE*SNDMORE) | ZMQ_DONTWAIT)
+        if -1 == msg_send(socket, zmsg, (ZMQ_SNDMORE*more) | ZMQ_DONTWAIT)
             zmq_errno() == EAGAIN || throw(StateError(jl_zmq_error_str()))
             while (socket.events & POLLOUT) == 0
                 wait(socket)
@@ -31,15 +31,15 @@ end
 # that allows zero-copy access.
 
 """
-    send(socket::Socket, data, more=false)
+    send(socket::Socket, data; more=false)
 
-Send `data` over `socket`.  An optional `more=true` argument can be passed
+Send `data` over `socket`.  A `more=true` keyword argument can be passed
 to indicate that `data` is a portion of a larger multipart message.
 `data` can be any `isbits` type, a `Vector` of `isbits` elements, a
 `String`, or a [`Message`](@ref) object to perform zero-copy sends
 of large arrays.
 """
-function Sockets.send(socket::Socket, data, more::Bool=false)
+function Sockets.send(socket::Socket, data; more::Bool=false)
     zmsg = _MessageRef(data)
     try
         _send(socket, zmsg, more)
@@ -49,12 +49,15 @@ function Sockets.send(socket::Socket, data, more::Bool=false)
 end
 
 # zero-copy version using user-allocated Message
-Sockets.send(socket::Socket, zmsg::Message, more::Bool=false) = _send(socket, zmsg, more)
+Sockets.send(socket::Socket, zmsg::Message; more::Bool=false) = _send(socket, zmsg, more)
 
-function Sockets.send(f::Function, socket::Socket, SNDMORE::Bool=false)
+import Sockets: send
+@deprecate send(socket::Socket, data, more::Bool) send(socket, data; more=more)
+
+function Sockets.send(f::Function, socket::Socket; more::Bool=false)
     io = IOBuffer()
     f(io)
-    send(socket, take!(io), SNDMORE)
+    send(socket, take!(io); more=more)
 end
 
 ############################################################################
