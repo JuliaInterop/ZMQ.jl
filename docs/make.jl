@@ -16,6 +16,6 @@ makedocs(
 )
 
 deploydocs(
-    repo = "github.com/joelfrederico/ZMQ.jl.git",
+    repo = "github.com/JuliaInterop/ZMQ.jl.git",
     target = "build",
 )
