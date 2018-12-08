@@ -44,14 +44,14 @@ end
 Base.wait(socket::Socket) = wait(getfield(socket, :pollfd), readable=true, writable=false)
 Base.notify(socket::Socket) = @preserve socket uv_pollcb(getfield(socket, :pollfd).handle, Int32(0), Int32(UV_READABLE))
 
-function Sockets.bind(socket::Socket, endpoint::AbstractString)
+function bind(socket::Socket, endpoint::AbstractString)
     rc = ccall((:zmq_bind, libzmq), Cint, (Ptr{Cvoid}, Ptr{UInt8}), socket, endpoint)
     if rc != 0
         throw(StateError(jl_zmq_error_str()))
     end
 end
 
-function Sockets.connect(socket::Socket, endpoint::AbstractString)
+function connect(socket::Socket, endpoint::AbstractString)
     rc=ccall((:zmq_connect, libzmq), Cint, (Ptr{Cvoid}, Ptr{UInt8}), socket, endpoint)
     if rc != 0
         throw(StateError(jl_zmq_error_str()))

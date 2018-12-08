@@ -39,7 +39,7 @@ to indicate that `data` is a portion of a larger multipart message.
 `String`, or a [`Message`](@ref) object to perform zero-copy sends
 of large arrays.
 """
-function Sockets.send(socket::Socket, data; more::Bool=false)
+function send(socket::Socket, data; more::Bool=false)
     zmsg = _MessageRef(data)
     try
         _send(socket, zmsg, more)
@@ -49,12 +49,11 @@ function Sockets.send(socket::Socket, data; more::Bool=false)
 end
 
 # zero-copy version using user-allocated Message
-Sockets.send(socket::Socket, zmsg::Message; more::Bool=false) = _send(socket, zmsg, more)
+send(socket::Socket, zmsg::Message; more::Bool=false) = _send(socket, zmsg, more)
 
-import Sockets: send
 @deprecate send(socket::Socket, data, more::Bool) send(socket, data; more=more)
 
-function Sockets.send(f::Function, socket::Socket; more::Bool=false)
+function send(f::Function, socket::Socket; more::Bool=false)
     io = IOBuffer()
     f(io)
     send(socket, take!(io); more=more)
@@ -91,7 +90,7 @@ end
 Return a `Message` object representing a message received from a ZMQ `Socket`
 (without making a copy of the message data).
 """
-Sockets.recv(socket::Socket) = _recv!(socket, Message())
+recv(socket::Socket) = _recv!(socket, Message())
 
 """
    recv(socket::Socket, ::Type{T})
@@ -100,7 +99,7 @@ Receive a message of type `T` (typically a `String`, `Vector{UInt8}`, or [`isbit
 from a ZMQ `Socket`.   (Makes a copy of the message data; you can alternatively use
 `recv(socket)` to work with zero-copy bytearray-like representation for large messages.)
 """
-function Sockets.recv(socket::Socket, ::Type{T}) where {T}
+function recv(socket::Socket, ::Type{T}) where {T}
     zmsg = msg_init()
     try
         _recv!(socket, zmsg)
