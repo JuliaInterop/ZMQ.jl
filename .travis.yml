@@ -20,5 +20,6 @@ jobs:
       script:
         - julia --project=docs/ -e 'using Pkg; Pkg.instantiate();
                                     Pkg.develop(PackageSpec(path=pwd()))'
+        - julia --project=docs/ -e 'using Pkg; Pkg.build("ZMQ")'
         - julia --project=docs/ docs/make.jl
       after_success: skip
