@@ -48,8 +48,16 @@ function send(socket::Socket, data; more::Bool=false)
     end
 end
 
+function Sockets.send(socket::Socket, data; more::Bool=false)
+  depwarn("Sockets.send(socket::Socket, data; more::Bool) is deprecated, use send(socket::Socket, data; more::Bool=false) instead.", nothing)
+  send(socket, data, more=more)
+end
+
 # zero-copy version using user-allocated Message
 send(socket::Socket, zmsg::Message; more::Bool=false) = _send(socket, zmsg, more)
+function Sockets.send(socket::Socket, zmsg::Message; more::Bool=false) 
+  depwarn("Sockets.send(socket::Socket, zmsg::Message; more::Bool=false) is deprecated, use send(socket::Socket, zmsg::Message; more::Bool=false) instead.", nothing)
+end
 
 @deprecate send(socket::Socket, data, more::Bool) send(socket, data; more=more)
 
@@ -91,6 +99,10 @@ Return a `Message` object representing a message received from a ZMQ `Socket`
 (without making a copy of the message data).
 """
 recv(socket::Socket) = _recv!(socket, Message())
+function Sockets.recv(socket::Socket) 
+    depwarn("Sockets.recv(socket::Socket) is deprecated, use recv(socket::Socket) instead.", nothing)
+    recv(socket::Socket)
+end
 
 """
    recv(socket::Socket, ::Type{T})
@@ -107,4 +119,10 @@ function recv(socket::Socket, ::Type{T}) where {T}
     finally
         close(zmsg)
     end
+end
+
+function Sockets.recv(socket::Socket, t::Type{T}) where {T}
+    depwarn("Sockets.recv(socket::Socket, ::Type{T}) where {T} is deprecated, use recv(socket::Socket, ::Type{T}) where {T}
+ instead.", nothing)
+    recv(socket, t)
 end
