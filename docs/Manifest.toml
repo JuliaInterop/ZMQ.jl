@@ -89,8 +89,8 @@ uuid = "4ec0a83e-493e-50e2-b9ac-8f72acf5a8f5"
 
 [[ZMQ]]
 deps = ["BinaryProvider", "FileWatching", "Libdl", "Sockets", "Test"]
-git-tree-sha1 = "1c508632506f024fcef32f1802e8c249090c9adb"
+git-tree-sha1 = "517df9d94b1bacec4d7d8c2df33e43335bfcc0cb"
 repo-rev = "master"
-repo-url = ".."
+repo-url = "https://github.com/joelfrederico/ZMQ.jl"
 uuid = "c2297ded-f4af-51ae-bb23-16f91089e4e1"
 version = "1.0.0+"
