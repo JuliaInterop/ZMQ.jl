@@ -8,8 +8,8 @@ julia:
     - nightly
 env:
   matrix:
-    - FORCE_COMPILE_ZMQ=yes
     - FORCE_COMPILE_ZMQ=no
+    - FORCE_COMPILE_ZMQ=yes
 notifications:
     email: false
 jobs:
