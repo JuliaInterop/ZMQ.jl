@@ -18,6 +18,15 @@ mutable struct Socket
     Socket(typ::Integer) = Socket(context(), typ)
 end
 
+function Socket(f::Function, args...)
+    socket = Socket(args...)
+    try
+        f(socket)
+    finally
+        close(socket)
+    end
+end
+
 Base.unsafe_convert(::Type{Ptr{Cvoid}}, s::Socket) = getfield(s, :data)
 
 Base.isopen(socket::Socket) = getfield(socket, :data) != C_NULL
