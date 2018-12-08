@@ -3,8 +3,7 @@ mutable struct Socket
     data::Ptr{Cvoid}
     pollfd::_FDWatcher
 
-    # ctx should be ::Context, but forward type references are not allowed
-    function Socket(ctx, typ::Integer)
+    function Socket(ctx::Context, typ::Integer)
         p = ccall((:zmq_socket, libzmq), Ptr{Cvoid}, (Ptr{Cvoid}, Cint), ctx, typ)
         if p == C_NULL
             throw(StateError(jl_zmq_error_str()))
