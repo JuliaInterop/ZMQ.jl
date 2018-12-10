@@ -29,6 +29,15 @@ mutable struct Context
     end
 end
 
+function Context(f::Function, args...)
+    ctx = Context(args...)
+    try
+        f(ctx)
+    finally
+        close(ctx)
+    end
+end
+
 Base.unsafe_convert(::Type{Ptr{Cvoid}}, c::Context) = getfield(c, :data)
 
 # define a global context that is initialized lazily
