@@ -142,7 +142,7 @@ function _set(zmsg::Message, property::Integer, value::Integer)
         throw(StateError(jl_zmq_error_str()))
     end
 end
-Base.propertynames(zmsg::Message) = (:more)
+Base.propertynames(zmsg::Message) = (:more,)
 function Base.getproperty(zmsg::Message, name::Symbol)
     if name === :more
         return _get(zmsg, MORE)
