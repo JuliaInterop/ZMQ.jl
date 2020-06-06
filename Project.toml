@@ -1,6 +1,6 @@
 name = "ZMQ"
 uuid = "c2297ded-f4af-51ae-bb23-16f91089e4e1"
-version = "1.2.0"
+version = "1.2.1"
 
 [deps]
 FileWatching = "7b1f6079-737a-58dc-b8bc-7a2ca5c1b5ee"
