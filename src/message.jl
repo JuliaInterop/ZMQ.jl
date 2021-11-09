@@ -116,6 +116,7 @@ Base.unsafe_string(zmsg::Message) = @preserve zmsg unsafe_string(pointer(zmsg), 
 function Base.convert(::Type{IOStream}, zmsg::Message)
     s = IOBuffer()
     write(s, zmsg)
+    seek(s, 0)
     return s
 end
 
