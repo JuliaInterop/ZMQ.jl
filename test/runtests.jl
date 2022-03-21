@@ -36,6 +36,11 @@ end
 	ZMQ.connect(s2, "tcp://localhost:5555")
 
 	msg = Message("test request")
+
+    # Smoke tests
+    @test Base.elsize(msg) == 1
+    @test Base.strides(msg) == (1,)
+
 	# Test similar() and copy() fixes in https://github.com/JuliaInterop/ZMQ.jl/pull/165
 	# Note that we have to send this message to work around
 	# https://github.com/JuliaInterop/ZMQ.jl/issues/166

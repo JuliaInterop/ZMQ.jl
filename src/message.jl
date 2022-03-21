@@ -111,6 +111,9 @@ end
 # Convert message to string (copies data)
 Base.unsafe_string(zmsg::Message) = @preserve zmsg unsafe_string(pointer(zmsg), length(zmsg))
 
+Base.elsize(::Message) = 1
+Base.strides(::Message) = (1,)
+
 # Build an IOStream from a message
 # Copies the data
 function Base.convert(::Type{IOStream}, zmsg::Message)
