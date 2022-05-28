@@ -5,7 +5,23 @@
 struct StateError <: Exception
     msg::AbstractString
 end
-show(io, thiserr::StateError) = print(io, "ZMQ: ", thiserr.msg)
+
+"""
+Exception thrown by the `recv*()` methods if `rcvtimeo` is set and a receive
+times out. The timeout itself can be obtained from the `timeout_secs` property
+of the exception.
+"""
+struct TimeoutError <: Exception
+    socket_info::String
+    timeout_secs::Float64
+end
+
+Base.show(io::IO, thiserr::StateError) = print(io, "ZMQ: ", thiserr.msg)
+
+function Base.show(io::IO, thiserr::TimeoutError)
+    timeout_str = @sprintf("%.2fs", thiserr.timeout_secs)
+    print(io, TimeoutError, ": $(thiserr.socket_info) receive timed out after $(timeout_str)")
+end
 
 # Basic functions
 

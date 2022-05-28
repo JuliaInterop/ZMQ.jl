@@ -3,7 +3,8 @@
 module ZMQ
 
 using Base.Libc: EAGAIN
-using FileWatching: UV_READABLE, uv_pollcb, FDWatcher
+using FileWatching: UV_READABLE, uv_pollcb, FDWatcher, poll_fd
+using Printf: @sprintf
 import Sockets
 using Sockets: connect, bind, send, recv
 import Base.GC: @preserve
@@ -84,6 +85,11 @@ import PrecompileTools: @compile_workload
     unsafe_string(ZMQ.recv(s2))
     ZMQ.close(s1)
     ZMQ.close(s2)
+
+    # Precompile methods that are likely to be called when an exception is
+    # thrown.
+    repr(TimeoutError(repr(s1), 0.5))
+    repr(StateError("foo"))
 
     # Using the library like this workload will initialize ZMQ._context, which
     # contains a pointer. This doesn't seem to play well with serialization on
