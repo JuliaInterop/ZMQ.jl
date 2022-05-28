@@ -4,7 +4,7 @@ module ZMQ
 using ZeroMQ_jll
 
 using Base.Libc: EAGAIN
-using FileWatching: UV_READABLE, uv_pollcb, _FDWatcher
+using FileWatching: UV_READABLE, uv_pollcb, FDWatcher
 import Sockets
 using Sockets: connect, bind, send, recv
 import Base.GC: @preserve

@@ -1,7 +1,7 @@
 ## Sockets ##
 mutable struct Socket
     data::Ptr{Cvoid}
-    pollfd::_FDWatcher
+    pollfd::FDWatcher
 
     function Socket(ctx::Context, typ::Integer)
         p = ccall((:zmq_socket, libzmq), Ptr{Cvoid}, (Ptr{Cvoid}, Cint), ctx, typ)
@@ -9,7 +9,7 @@ mutable struct Socket
             throw(StateError(jl_zmq_error_str()))
         end
         socket = new(p)
-        setfield!(socket, :pollfd, _FDWatcher(fd(socket), #=readable=#true, #=writable=#false))
+        setfield!(socket, :pollfd, FDWatcher(fd(socket), #=readable=#true, #=writable=#false))
         finalizer(close, socket)
         push!(getfield(ctx, :sockets), WeakRef(socket))
         return socket
@@ -31,7 +31,7 @@ Base.unsafe_convert(::Type{Ptr{Cvoid}}, s::Socket) = getfield(s, :data)
 Base.isopen(socket::Socket) = getfield(socket, :data) != C_NULL
 function Base.close(socket::Socket)
     if isopen(socket)
-        close(getfield(socket, :pollfd), #=readable=#true, #=writable=#false)
+        close(getfield(socket, :pollfd))
         rc = ccall((:zmq_close, libzmq), Cint,  (Ptr{Cvoid},), socket)
         setfield!(socket, :data, C_NULL)
         if rc != 0
@@ -49,8 +49,8 @@ if Sys.iswindows()
     Base.fd(socket::Socket) = WindowsRawSocket(convert(Ptr{Cvoid}, socket.fd))
 end
 
-Base.wait(socket::Socket) = wait(getfield(socket, :pollfd), readable=true, writable=false)
-Base.notify(socket::Socket) = @preserve socket uv_pollcb(getfield(socket, :pollfd).handle, Int32(0), Int32(UV_READABLE))
+Base.wait(socket::Socket) = wait(getfield(socket, :pollfd))
+Base.notify(socket::Socket) = @preserve socket uv_pollcb(getfield(socket, :pollfd).watcher.handle, Int32(0), Int32(UV_READABLE))
 
 function Sockets.bind(socket::Socket, endpoint::AbstractString)
     rc = ccall((:zmq_bind, libzmq), Cint, (Ptr{Cvoid}, Ptr{UInt8}), socket, endpoint)
