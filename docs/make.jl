@@ -12,7 +12,7 @@ makedocs(
         ],
         "Reference" => "reference.md",
     ],
-    #= Documenter.HTML(), =#
+    format = Documenter.HTML(prettyurls = get(ENV, "CI", nothing) == "true")
 )
 
 deploydocs(

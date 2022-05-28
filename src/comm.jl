@@ -48,7 +48,12 @@ function Sockets.send(socket::Socket, data; more::Bool=false)
     end
 end
 
-# zero-copy version using user-allocated Message
+"""
+    send(socket::Socket, zmsg::Message; more::Bool=false)
+
+Zero-copy version of [`Sockets.send(socket, data)`](@ref) using a user-allocated
+[`Message`](@ref).
+"""
 Sockets.send(socket::Socket, zmsg::Message; more::Bool=false) = _send(socket, zmsg, more)
 
 import Sockets: send
@@ -86,7 +91,7 @@ function _recv!(socket::Socket, zmsg)
 end
 
 """
-   recv(socket::Socket) :: Message
+    recv(socket::Socket)
 
 Return a `Message` object representing a message received from a ZMQ `Socket`
 (without making a copy of the message data).
@@ -94,11 +99,14 @@ Return a `Message` object representing a message received from a ZMQ `Socket`
 Sockets.recv(socket::Socket) = _recv!(socket, Message())
 
 """
-   recv(socket::Socket, ::Type{T})
+    recv(socket::Socket, ::Type{T})
 
-Receive a message of type `T` (typically a `String`, `Vector{UInt8}`, or [`isbits`](@ref) type)
-from a ZMQ `Socket`.   (Makes a copy of the message data; you can alternatively use
-`recv(socket)` to work with zero-copy bytearray-like representation for large messages.)
+Receive a message of type `T` (typically a `String`, `Vector{UInt8}`, or
+[`isbits`](https://docs.julialang.org/en/v1/base/base/#Base.isbits) type)
+from a ZMQ [`Socket`](@ref).  (Makes a copy of the message data; you can alternatively
+use [`recv(socket)`](@ref) to work with zero-copy bytearray-like representation for
+large messages.)
+
 """
 function Sockets.recv(socket::Socket, ::Type{T}) where {T}
     zmsg = msg_init()
