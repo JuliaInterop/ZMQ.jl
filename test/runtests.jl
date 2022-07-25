@@ -147,3 +147,5 @@ end
     end
     @test !isopen(leaked_ctx)
 end
+
+include("latency_tests.jl")
