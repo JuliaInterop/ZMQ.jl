@@ -4,43 +4,55 @@ using Statistics
 @show Threads.nthreads()
 
 @testset "Latency tests" begin
-    function send_messages(socket::ZMQ.Socket, msg, N::Int, Δt::TimePeriod, ready_to_start::Channel{Nothing}, start_condition::Threads.Condition)
-        timestamps = Nanosecond[]    
-        @info "Sender ready to start on thread $(Threads.threadid())"
-        put!(ready_to_start, nothing)
-        lock(start_condition) do
-            wait(start_condition)          
+    function send_messages(ctx::ZMQ.Context, msg, N::Int, Δt::TimePeriod, ready_to_start::Channel{Nothing}, start_condition::Threads.Condition)
+        socket = Socket(ctx, PUSH)
+        try
+            bind(socket, "tcp://*:6666")
+            timestamps = Nanosecond[]
+            @info "Sender ready to start on thread $(Threads.threadid())"
+            put!(ready_to_start, nothing)
+            lock(start_condition) do
+                wait(start_condition)          
+            end
+            @info "Sender starting"
+            for _ in 1:N
+                sleep(Δt)
+                ZMQ.send(socket, msg)
+                push!(timestamps, Nanosecond(time_ns()))
+            end
+            return timestamps
+        finally
+            close(socket)
         end
-        @info "Sender starting"
-        for _ in 1:N
-            sleep(Δt)
-            ZMQ.send(socket, msg)
-            push!(timestamps, Nanosecond(time_ns()))
-        end
-        return timestamps
     end
     
-    function receive_messages(socket::ZMQ.Socket, N::Int, ready_to_start::Channel{Nothing}, start_condition::Threads.Condition)
-        timestamps = Nanosecond[]
-        @info "Receiver ready to start on thread $(Threads.threadid())"
-        put!(ready_to_start, nothing)
-        lock(start_condition) do
-            wait(start_condition)          
+    function receive_messages(ctx::ZMQ.Context, N::Int, ready_to_start::Channel{Nothing}, start_condition::Threads.Condition)
+        socket = Socket(ctx, PULL)
+        try
+            connect(socket, "tcp://localhost:6666")
+            timestamps = Nanosecond[]
+            @info "Receiver ready to start on thread $(Threads.threadid())"
+            put!(ready_to_start, nothing)
+            lock(start_condition) do
+                wait(start_condition)          
+            end
+            @info "Receiver starting"
+            for _ in 1:N
+                ZMQ.recv(socket)
+                push!(timestamps, Nanosecond(time_ns()))
+            end
+            return timestamps
+        finally
+            close(socket)
         end
-        @info "Receiver starting"
-        for _ in 1:N
-            ZMQ.recv(socket)
-            push!(timestamps, Nanosecond(time_ns()))
-        end
-        return timestamps
     end
     
-    function time_parallel_send_receive(send_socket, recv_socket, msg, N::Int, Δt::TimePeriod)
+    function time_parallel_send_receive(ctx::ZMQ.Context, msg, N::Int, Δt::TimePeriod)
         ready_to_start = Channel{Nothing}(2)
         start_condition = Threads.Condition()
         
-        sender = Threads.@spawn send_messages(send_socket, msg, N, Δt, ready_to_start, start_condition)
-        receiver = Threads.@spawn receive_messages(recv_socket, N, ready_to_start, start_condition)
+        sender = Threads.@spawn send_messages(ctx, msg, N, Δt, ready_to_start, start_condition)
+        receiver = Threads.@spawn receive_messages(ctx, N, ready_to_start, start_condition)
         @info "Awaiting ready_to_start"
         for _ in 1:2
             take!(ready_to_start)
@@ -99,17 +111,12 @@ using Statistics
             expected_max_tol = Dates.toms(Millisecond(10))
             
             ctx = ZMQ.context()
-            send_socket = Socket(ctx, PUSH)
-            bind(send_socket, "tcp://*:6666")
-            recv_socket = Socket(ctx, PULL)
-            connect(recv_socket, "tcp://localhost:6666")
+            @show ctx.io_threads
             
             try
-                push_timestamps, pull_timestamps = time_parallel_send_receive(send_socket, recv_socket, msg, N, Δt)
+                push_timestamps, pull_timestamps = time_parallel_send_receive(ctx, msg, N, Δt)
                 test_timestamps(push_timestamps, pull_timestamps, N, expected_max_latency, expected_mean, expected_median, expected_tol, expected_max_tol)
             finally
-                close(send_socket)
-                close(recv_socket)
                 close(ctx)
             end  
         end
