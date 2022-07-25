@@ -5,7 +5,7 @@ using Statistics
 
 @testset "Latency tests" begin
     function send_messages(ctx::ZMQ.Context, msg, N::Int, Δt::TimePeriod, ready_to_start::Channel{Nothing}, start_condition::Threads.Condition)
-        socket = Socket(ctx, PUSH)
+        socket = Socket(ctx, REP)
         try
             bind(socket, "tcp://*:6666")
             timestamps = Nanosecond[]
@@ -17,6 +17,7 @@ using Statistics
             @info "Sender starting"
             for _ in 1:N
                 sleep(Δt)
+                ZMQ.recv(socket)
                 ZMQ.send(socket, msg)
                 push!(timestamps, Nanosecond(time_ns()))
             end
@@ -27,7 +28,8 @@ using Statistics
     end
     
     function receive_messages(ctx::ZMQ.Context, N::Int, ready_to_start::Channel{Nothing}, start_condition::Threads.Condition)
-        socket = Socket(ctx, PULL)
+        socket = Socket(ctx, REQ)
+        msg = [0x1]
         try
             connect(socket, "tcp://localhost:6666")
             timestamps = Nanosecond[]
@@ -38,6 +40,7 @@ using Statistics
             end
             @info "Receiver starting"
             for _ in 1:N
+                ZMQ.send(socket, msg)
                 ZMQ.recv(socket)
                 push!(timestamps, Nanosecond(time_ns()))
             end
@@ -99,7 +102,7 @@ using Statistics
     end
 
     for period_ms in [2^n for n in 0:4]
-        @testset "PUSH/PULL with period $period_ms ms" begin
+        @testset "REQ/REP with period $period_ms ms" begin
             N = 1000 # Number of messages
             Δt = Millisecond(period_ms)
             msg = [0x1]
