@@ -44,6 +44,25 @@ jobs:
             ${{ runner.os }}-test-
             ${{ runner.os }}-
       - uses: julia-actions/julia-buildpkg@v1
+      - if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends         autoconf         automake         build-essential         ca-certificates git         libkrb5-dev         libsodium-dev         libtool         pkg-config
+          git clone https://github.com/zeromq/libzmq
+          cd libzmq
+          ./autogen.sh
+          ./configure --prefix=/usr/local --with-libsodium --with-libgssapi_krb5
+          make
+          cd perf
+          for size in 1 2 4 8 16 32 64 128 256 512 1024; do
+            ./local_lat tcp://*:5000 $size 1000 &
+            ./remote_lat tcp://127.0.0.1:5000 $size 1000
+            sleep 1
+          done
+          for size in 1 2 4 8 16 32 64 128 256 512 1024; do
+            ./inproc_lat $size 1000
+            sleep 1
+          done
       - uses: julia-actions/julia-runtest@v1
         env:
           JULIA_NUM_THREADS: 4
