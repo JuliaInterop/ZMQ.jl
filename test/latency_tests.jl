@@ -1,6 +1,8 @@
 using Dates
 using Statistics
 
+@show Threads.nthreads()
+
 @testset "Latency tests" begin
     function send_messages(socket::ZMQ.Socket, msg, N::Int, Δt::TimePeriod, ready_to_start::Channel{Nothing}, start_condition::Threads.Condition)
         timestamps = Nanosecond[]    
