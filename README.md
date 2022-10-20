@@ -2,9 +2,9 @@
 
 *A Julia interface to ZeroMQ*
 
-| **Documentation**                                                         | **Build Status**                                                |
-|:-------------------------------------------------------------------------:|:---------------------------------------------------------------:|
-| [![][docs-stable-img]][docs-stable-url] [![][docs-dev-img]][docs-dev-url] | [![][travis-img]][travis-url] [![][appveyor-img]][appveyor-url] |
+| **Documentation**                                                         |
+|:-------------------------------------------------------------------------:|
+| [![][docs-stable-img]][docs-stable-url] [![][docs-dev-img]][docs-dev-url] |
 
 **ZMQ.jl** is a [Julia](http://julialang.org) interface to [ZeroMQ, The Intelligent Transport Layer](http://zeromq.org).
 
