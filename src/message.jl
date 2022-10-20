@@ -1,5 +1,3 @@
-## High-level Message object for sending/receiving ZMQ messages in shared buffers.
-
 include("_message.jl")
 
 # in order to support zero-copy messages that share data with Julia
@@ -24,12 +22,69 @@ function gc_free_fn(data::Ptr{Cvoid}, hint::Ptr{Cvoid})
     ccall(:uv_async_send,Cint,(Ptr{Cvoid},),hint)
 end
 
+"""
+High-level Message object for sending/receiving ZMQ messages in shared buffers.
+
+    Message()
+
+Create an empty message (for receive).
+
+---
+
+    Message(len::Integer)
+
+Create a message with a given buffer size (for send).
+
+---
+
+    Message(origin::Any, m::Ptr{T}, len::Integer) where {T}
+
+Low-level function to create a message (for send) with an existing
+data buffer, without making a copy.  The origin parameter should
+be the Julia object that is the origin of the data, so that
+we can hold a reference to it until ZMQ is done with the buffer.
+
+---
+
+    Message(m::String)
+
+Create a message with a string as a buffer (for send). Note: the Message now
+"owns" the string, it must not be resized, or even written to after the message
+is sent.
+
+---
+
+    Message(p::SubString{String})
+
+Create a message with a sub-string as a buffer (for send). Note: the same
+ownership semantics as for [`Message(m::String)`](@ref) apply.
+
+---
+
+    Message(a::Array)
+
+Create a message with an array as a buffer (for send). Note: the same
+ownership semantics as for [`Message(m::String)`](@ref) apply.
+
+---
+
+    Message(io::IOBuffer)
+
+Create a message with an
+[`IOBuffer`](https://docs.julialang.org/en/v1/base/io-network/#Base.IOBuffer) as
+a buffer (for send). Note: the same ownership semantics as for
+[`Message(m::String)`](@ref) apply.
+"""
 mutable struct Message <: AbstractArray{UInt8,1}
     # Matching the declaration in the header: char _[64];
     w_padding::_Message
     handle::Ptr{Cvoid} # index into gc_protect, if any
 
-    # Create an empty message (for receive)
+    """
+        Message()
+
+    Create an empty message (for receive).
+    """
     function Message()
         zmsg = new()
         setfield!(zmsg, :handle, C_NULL)
@@ -40,7 +95,12 @@ mutable struct Message <: AbstractArray{UInt8,1}
         finalizer(close, zmsg)
         return zmsg
     end
-    # Create a message with a given buffer size (for send)
+
+    """
+        Message(len::Integer)
+
+    Create a message with a given buffer size (for send).
+    """
     function Message(len::Integer)
         zmsg = new()
         setfield!(zmsg, :handle, C_NULL)
@@ -52,10 +112,14 @@ mutable struct Message <: AbstractArray{UInt8,1}
         return zmsg
     end
 
-    # low-level function to create a message (for send) with an existing
-    # data buffer, without making a copy.  The origin parameter should
-    # be the Julia object that is the origin of the data, so that
-    # we can hold a reference to it until zeromq is done with the buffer.
+    """
+        Message(origin::Any, m::Ptr{T}, len::Integer) where {T}
+
+    Low-level function to create a message (for send) with an existing
+    data buffer, without making a copy.  The origin parameter should
+    be the Julia object that is the origin of the data, so that
+    we can hold a reference to it until ZMQ is done with the buffer.
+    """
     function Message(origin::Any, m::Ptr{T}, len::Integer) where {T}
         zmsg = new()
         setfield!(zmsg, :handle, gc_protect_handle(origin))
@@ -70,13 +134,40 @@ mutable struct Message <: AbstractArray{UInt8,1}
         return zmsg
     end
 
-    # Create a message with a given AbstractString or Array as a buffer (for send)
-    # (note: now "owns" the buffer ... the Array must not be resized,
-    #        or even written to after the message is sent!)
+    """
+        Message(m::String)
+
+    Create a message with a string as a buffer (for send). Note: the Message now
+    "owns" the string, it must not be resized, or even written to after the message
+    is sent.
+    """
     Message(m::String) = Message(m, pointer(m), sizeof(m))
+
+    """
+        Message(p::SubString{String})
+
+    Create a message with a sub-string as a buffer (for send). Note: the same
+    ownership semantics as for [`Message(m::String)`](@ref) apply.
+    """
     Message(p::SubString{String}) =
         Message(p, pointer(p.string)+p.offset, sizeof(p))
+
+    """
+        Message(a::Array)
+
+    Create a message with an array as a buffer (for send). Note: the same
+    ownership semantics as for [`Message(m::String)`](@ref) apply.
+    """
     Message(a::Array) = Message(a, pointer(a), sizeof(a))
+
+    """
+        Message(io::IOBuffer)
+
+    Create a message with an
+    [`IOBuffer`](https://docs.julialang.org/en/v1/base/io-network/#Base.IOBuffer) as
+    a buffer (for send). Note: the same ownership semantics as for
+    [`Message(m::String)`](@ref) apply.
+    """
     function Message(io::IOBuffer)
         if !io.readable || !io.seekable
             error("byte read failed")
