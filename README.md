@@ -41,7 +41,7 @@ Usage questions can be posted on the [Julia Discourse forum][discourse-tag-url] 
 Contributions are very welcome, as are feature requests and suggestions. Please open an [issue][issues-url] if you encounter any problems. The [contributing page][contrib-url] has a few guidelines that should be followed when opening pull requests and contributing code.
 
 [contrib-url]: https://juliadocs.github.io/Documenter.jl/latest/man/contributing/
-[discourse-tag-url]: https://discourse.julialang.org/tags/documenter
+[discourse-tag-url]: https://discourse.julialang.org/tags/zmq
 [gitter-url]: https://gitter.im/juliadocs/users
 
 [docs-dev-img]: https://img.shields.io/badge/docs-dev-blue.svg
