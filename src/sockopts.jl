@@ -25,6 +25,7 @@ for (fset, fget, k, T) in [
     (:set_rcvtimeo,                :get_rcvtimeo,                27,   Cint)
     (:set_sndtimeo,                :get_sndtimeo,                28,   Cint)
     (:set_immediate,               :get_immediate,               39,   Cint)
+    (:set_conflate,                :get_conflate,                54,   Cint)
     (nothing,                      :get_fd,                      14, Sys.iswindows() ? Ptr{Cvoid} : Cint)
     ]
     if fset != nothing
@@ -122,7 +123,7 @@ const sockprops = (:affinity, :type, :linger, :reconnect_ivl, :backlog, :reconne
                    :rate, :recovery_ivl, :sndbuf, :rcvbuf, :rcvmore, :events, :maxmsgsize,
                    :sndhwm, :rcvhwm, :multicast_hops, :ipv4only,
                    :tcp_keepalive, :tcp_keepalive_idle, :tcp_keepalive_cnt, :tcp_keepalive_intvl,
-                   :rcvtimeo, :sndtimeo, :fd, :routing_id, :last_endpoint, :immediate)
+                   :rcvtimeo, :sndtimeo, :fd, :routing_id, :last_endpoint, :immediate, :conflate)
 
 Base.propertynames(::Socket) = sockprops
 @eval function Base.getproperty(value::Socket, name::Symbol)
