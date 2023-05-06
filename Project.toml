@@ -9,6 +9,7 @@ Sockets = "6462fe0b-24de-5631-8697-dd941f90decc"
 ZeroMQ_jll = "8f1865be-045e-5c20-9c9f-bfbfb0764568"
 
 [compat]
+PrecompileTools = "1"
 ZeroMQ_jll = "4"
 julia = "1.3"
 
