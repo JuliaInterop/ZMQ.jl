@@ -49,24 +49,24 @@ using PrecompileTools
     # The ZMQ scoping below isn't necessary, but it makes it easier to copy/paste
     # the workload to test impact.
     s=Socket(PUB)
-	ZMQ.close(s)
+    ZMQ.close(s)
 
-	s1=Socket(REP)
-	s1.sndhwm = 1000
-	s1.linger = 1
-	s1.routing_id = "abcd"
+    s1=Socket(REP)
+    s1.sndhwm = 1000
+    s1.linger = 1
+    s1.routing_id = "abcd"
 
-	s2=Socket(REQ)
+    s2=Socket(REQ)
 
-	ZMQ.bind(s1, "tcp://*:5555")
-	ZMQ.connect(s2, "tcp://localhost:5555")
+    ZMQ.bind(s1, "tcp://*:5555")
+    ZMQ.connect(s2, "tcp://localhost:5555")
 
-	msg = Message("test request")
+    msg = Message("test request")
 
-	ZMQ.send(s2, msg)
-	unsafe_string(ZMQ.recv(s1))
-	ZMQ.send(s1, Message("test response"))
-	unsafe_string(ZMQ.recv(s2))
+    ZMQ.send(s2, msg)
+    unsafe_string(ZMQ.recv(s1))
+    ZMQ.send(s1, Message("test response"))
+    unsafe_string(ZMQ.recv(s2))
     ZMQ.close(s1)
     ZMQ.close(s2)
 end
