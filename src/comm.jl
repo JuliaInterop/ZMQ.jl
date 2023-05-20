@@ -16,7 +16,7 @@ function _send(socket::Socket, zmsg, more::Bool=false)
                 wait(socket)
             end
         else
-            notify_is_expensive = !isempty(getfield(socket,:pollfd).notify.waitq)
+            notify_is_expensive = !isempty(getfield(socket,:pollfd).watcher.notify.waitq)
             if notify_is_expensive
                 socket.events != 0 && notify(socket)
             end
@@ -80,7 +80,7 @@ function _recv!(socket::Socket, zmsg)
                 wait(socket)
             end
         else
-            notify_is_expensive = !isempty(getfield(socket,:pollfd).notify.waitq)
+            notify_is_expensive = !isempty(getfield(socket,:pollfd).watcher.notify.waitq)
             if notify_is_expensive
                 socket.events != 0 && notify(socket)
             end
