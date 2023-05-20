@@ -95,6 +95,33 @@ end
 	ZMQ.send(s1, "another test response")
 	wait(c)
 
+    # Set s1's receive timeout to 0.5s, and check that it throws when there are
+    # no incoming messages.
+    s1.rcvtimeo = 500
+    recv_timeout_elapsed = @elapsed @test_throws ErrorException ZMQ.recv(s1)
+    @test recv_timeout_elapsed >= s1.rcvtimeo / 1000
+
+    # Test that the receive timeout functionality yields and doesn't block
+    c = Base.Condition()
+    msg_sent = false
+    # Set the receive timeout to something large
+    s1.rcvtimeo = 10_000
+    @async begin
+        global msg_sent
+        sleep(0.5)
+        msg_sent = true
+        ZMQ.send(s2, "foo request")
+        @test ZMQ.recv(s2, String) == "bar response"
+        notify(c)
+    end
+
+    @test ZMQ.recv(s1, String) == "foo request"
+    @test msg_sent == true
+    ZMQ.send(s1, "bar response")
+    wait(c)
+    # Reset the timeout for the rest of the tests
+    s1.rcvtimeo = -1
+
 	ZMQ.send(s2, Message("another test request"))
 	msg = ZMQ.recv(s1)
 	o=convert(IOStream, msg)
