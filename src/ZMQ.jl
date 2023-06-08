@@ -28,6 +28,7 @@ include("socket.jl")
 include("sockopts.jl")
 include("message.jl")
 include("comm.jl")
+include("draft.jl")
 
 function __init__()
     major = Ref{Cint}()
