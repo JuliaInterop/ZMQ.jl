@@ -25,6 +25,7 @@ for (fset, fget, k, T) in [
     (:set_rcvtimeo,                :get_rcvtimeo,                27,   Cint)
     (:set_sndtimeo,                :get_sndtimeo,                28,   Cint)
     (:set_immediate,               :get_immediate,               39,   Cint)
+    (:set_conflate,                :get_conflate,                54,   Cint)
     (nothing,                      :get_fd,                      14, Sys.iswindows() ? Ptr{Cvoid} : Cint)
     ]
     if fset != nothing
