@@ -21,7 +21,6 @@ jobs:
         os:
           - ubuntu-latest
           - windows-latest
-          - macOS-latest
         arch:
           - x64
         include:
@@ -56,6 +55,7 @@ jobs:
       - uses: codecov/codecov-action@v4
         with:
           file: lcov.info
+          token: ${{ secrets.CODECOV_TOKEN }}
   docs:
     name: Documentation
     runs-on: ubuntu-latest
