@@ -6,6 +6,9 @@ The ZMQ Socket type:
 
 ```@docs
 Socket
+Socket(::Context, ::Integer)
+Socket(::Integer)
+Socket(::Function)
 isopen
 close
 ```
@@ -42,6 +45,13 @@ DOWNSTREAM
 
 ```@docs
 Message
+Message()
+Message(::Integer)
+Message(::Any)
+Message(::String)
+Message(::SubString{String})
+Message(::Array)
+Message(::IOBuffer)
 ```
 
 ## Context

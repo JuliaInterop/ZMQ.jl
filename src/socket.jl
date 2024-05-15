@@ -1,27 +1,11 @@
 """
 A ZMQ socket.
-
-    Socket(typ::Integer)
-
-Create a socket of a certain type.
-
----
-
-    Socket(ctx::Context, typ::Integer)
-
-Create a socket in a given context.
-
----
-
-    Socket(f::Function, args...)
-
-Do-block constructor.
 """
 mutable struct Socket
     data::Ptr{Cvoid}
     pollfd::FDWatcher
 
-    """
+    @doc """
         Socket(ctx::Context, typ::Integer)
 
     Create a socket in a given context.
@@ -38,7 +22,7 @@ mutable struct Socket
         return socket
     end
 
-    """
+    @doc """
         Socket(typ::Integer)
 
     Create a socket of a certain type.
