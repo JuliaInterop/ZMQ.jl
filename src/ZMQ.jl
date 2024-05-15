@@ -1,7 +1,7 @@
 # Support for ZeroMQ, a network and interprocess communication library
 
 module ZMQ
-using ZeroMQ_jll
+import ZeroMQ_jll: libzmq
 
 using Base.Libc: EAGAIN
 using FileWatching: UV_READABLE, uv_pollcb, FDWatcher
@@ -43,7 +43,7 @@ function __init__()
     end
 end
 
-using PrecompileTools
+import PrecompileTools: @compile_workload
 @compile_workload begin
     __init__()
     # The ZMQ scoping below isn't necessary, but it makes it easier to copy/paste
