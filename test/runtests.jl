@@ -13,7 +13,23 @@ using ZMQ, Test
 	@test_throws StateError Socket(ctx, PUB)
 end
 
+# This test is in its own function to keep it simple and try to trick Julia into
+# thinking it can safely GC the Context.
+function context_gc_test()
+    ctx = Context()
+    s = Socket(ctx, PUB)
+
+    # Force garbage collection to attempt to delete ctx
+    GC.gc()
+
+    # But it shouldn't be garbage collected since the socket should have a
+    # reference to it, so the socket should still be open.
+    @test isopen(s)
+end
+
 @testset "ZMQ sockets" begin
+    context_gc_test()
+
 	s=Socket(PUB)
 	@test s isa Socket
 	ZMQ.close(s)
