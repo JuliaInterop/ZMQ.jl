@@ -24,63 +24,13 @@ end
 
 """
 High-level Message object for sending/receiving ZMQ messages in shared buffers.
-
-    Message()
-
-Create an empty message (for receive).
-
----
-
-    Message(len::Integer)
-
-Create a message with a given buffer size (for send).
-
----
-
-    Message(origin::Any, m::Ptr{T}, len::Integer) where {T}
-
-Low-level function to create a message (for send) with an existing
-data buffer, without making a copy.  The origin parameter should
-be the Julia object that is the origin of the data, so that
-we can hold a reference to it until ZMQ is done with the buffer.
-
----
-
-    Message(m::String)
-
-Create a message with a string as a buffer (for send). Note: the Message now
-"owns" the string, it must not be resized, or even written to after the message
-is sent.
-
----
-
-    Message(p::SubString{String})
-
-Create a message with a sub-string as a buffer (for send). Note: the same
-ownership semantics as for [`Message(m::String)`](@ref) apply.
-
----
-
-    Message(a::Array)
-
-Create a message with an array as a buffer (for send). Note: the same
-ownership semantics as for [`Message(m::String)`](@ref) apply.
-
----
-
-    Message(io::IOBuffer)
-
-Create a message with an
-[`IOBuffer`](https://docs.julialang.org/en/v1/base/io-network/#Base.IOBuffer) as
-a buffer (for send). Note: the same ownership semantics as for
-[`Message(m::String)`](@ref) apply.
 """
 mutable struct Message <: AbstractArray{UInt8,1}
     # Matching the declaration in the header: char _[64];
     w_padding::_Message
     handle::Ptr{Cvoid} # index into gc_protect, if any
 
-    """
+    @doc """
         Message()
 
     Create an empty message (for receive).
@@ -96,7 +46,7 @@ mutable struct Message <: AbstractArray{UInt8,1}
         return zmsg
     end
 
-    """
+    @doc """
         Message(len::Integer)
 
     Create a message with a given buffer size (for send).
@@ -112,7 +62,7 @@ mutable struct Message <: AbstractArray{UInt8,1}
         return zmsg
     end
 
-    """
+    @doc """
         Message(origin::Any, m::Ptr{T}, len::Integer) where {T}
 
     Low-level function to create a message (for send) with an existing
@@ -134,7 +84,7 @@ mutable struct Message <: AbstractArray{UInt8,1}
         return zmsg
     end
 
-    """
+    @doc """
         Message(m::String)
 
     Create a message with a string as a buffer (for send). Note: the Message now
@@ -143,7 +93,7 @@ mutable struct Message <: AbstractArray{UInt8,1}
     """
     Message(m::String) = Message(m, pointer(m), sizeof(m))
 
-    """
+    @doc """
         Message(p::SubString{String})
 
     Create a message with a sub-string as a buffer (for send). Note: the same
@@ -152,7 +102,7 @@ mutable struct Message <: AbstractArray{UInt8,1}
     Message(p::SubString{String}) =
         Message(p, pointer(p.string)+p.offset, sizeof(p))
 
-    """
+    @doc """
         Message(a::Array)
 
     Create a message with an array as a buffer (for send). Note: the same
@@ -160,7 +110,7 @@ mutable struct Message <: AbstractArray{UInt8,1}
     """
     Message(a::Array) = Message(a, pointer(a), sizeof(a))
 
-    """
+    @doc """
         Message(io::IOBuffer)
 
     Create a message with an
