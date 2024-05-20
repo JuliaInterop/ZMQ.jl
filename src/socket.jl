@@ -3,6 +3,7 @@ A ZMQ socket.
 """
 mutable struct Socket
     data::Ptr{Cvoid}
+    context::Context
     pollfd::FDWatcher
 
     @doc """
@@ -15,7 +16,7 @@ mutable struct Socket
         if p == C_NULL
             throw(StateError(jl_zmq_error_str()))
         end
-        socket = new(p)
+        socket = new(p, ctx)
         setfield!(socket, :pollfd, FDWatcher(fd(socket), #=readable=#true, #=writable=#false))
         finalizer(close, socket)
         push!(getfield(ctx, :sockets), WeakRef(socket))
