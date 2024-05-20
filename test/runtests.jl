@@ -1,3 +1,4 @@
+import Aqua
 using ZMQ, Test
 
 @info("Testing with ZMQ version $(ZMQ.version)")
@@ -145,4 +146,8 @@ end
 	@test isopen(ctx)
     end
     @test !isopen(leaked_ctx)
+end
+
+@testset "Aqua.jl" begin
+    Aqua.test_all(ZMQ)
 end
