@@ -1,0 +1,14 @@
+[general]
+library_name = "libzmq"
+module_name = "lib"
+output_file_path = "../src/bindings.jl"
+print_using_CEnum = false
+output_ignorelist = ["ZMQ_VERSION"]
+prologue_file_path = "./prologue.jl"
+
+auto_mutability = true
+auto_mutability_with_new = false
+auto_mutability_includelist = ["zmq_pollitem_t"]
+
+[codegen]
+use_ccall_macro = true
