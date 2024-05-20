@@ -42,11 +42,10 @@ end
     @test Base.strides(msg) == (1,)
 
 	# Test similar() and copy() fixes in https://github.com/JuliaInterop/ZMQ.jl/pull/165
-	# Note that we have to send this message to work around
-	# https://github.com/JuliaInterop/ZMQ.jl/issues/166
 	@test similar(msg, UInt8, 12) isa Vector{UInt8}
 	@test copy(msg) == codeunits("test request")
-	ZMQ.send(s2, msg)
+
+	ZMQ.send(s2, Message("test request"))
 	@test unsafe_string(ZMQ.recv(s1)) == "test request"
 	ZMQ.send(s1, Message("test response"))
 	@test unsafe_string(ZMQ.recv(s2)) == "test response"
