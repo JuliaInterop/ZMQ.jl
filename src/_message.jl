@@ -3,34 +3,34 @@
 
 # Low-level message type, matching the declaration of
 # zmq_msg_t in the header: char _[64];
-primitive type _Message 64 * 8 end
+const _Message = lib.zmq_msg_t
 
 const _MessageOrRef = Union{_Message,Base.RefValue{_Message}}
 
 function msg_init()
     zmsg = Ref{_Message}()
-    rc = ccall((:zmq_msg_init, libzmq), Cint, (Ref{_Message},), zmsg)
+    rc = lib.zmq_msg_init(zmsg)
     rc != 0 && throw(StateError(jl_zmq_error_str()))
     return zmsg
 end
 
 function msg_init(nbytes::Int)
     zmsg = Ref{_Message}()
-    rc = ccall((:zmq_msg_init_size, libzmq), Cint, (Ref{_Message}, Csize_t), zmsg, nbytes % Csize_t)
+    rc = lib.zmq_msg_init_size(zmsg, nbytes % Csize_t)
     rc != 0 && throw(StateError(jl_zmq_error_str()))
     return zmsg
 end
 
 # note: no finalizer for _Message, so we need to call close manually!
 function Base.close(zmsg::_MessageOrRef)
-    rc = ccall((:zmq_msg_close, libzmq), Cint, (Ref{_Message},), zmsg)
+    rc = lib.zmq_msg_close(zmsg)
     rc != 0 && throw(StateError(jl_zmq_error_str()))
     return nothing
 end
 
-Base.length(zmsg::_MessageOrRef) = ccall((:zmq_msg_size, libzmq), Csize_t, (Ref{_Message},), zmsg) % Int
-Base.unsafe_convert(::Type{Ptr{UInt8}}, zmsg::_MessageOrRef) =
-    ccall((:zmq_msg_data, libzmq), Ptr{UInt8}, (Ref{_Message},), zmsg)
+Base.length(zmsg::_MessageOrRef) = lib.zmq_msg_size(zmsg) % Int
+Base.unsafe_convert(::Type{Ptr{UInt8}}, zmsg::_Message) = Ptr{UInt8}(lib.zmq_msg_data(Ref(zmsg)))
+Base.unsafe_convert(::Type{Ptr{UInt8}}, zmsg::Base.RefValue{_Message}) = Ptr{UInt8}(lib.zmq_msg_data(zmsg))
 
 # isbits data, vectors thereof, and strings can be converted to/from _Message
 
