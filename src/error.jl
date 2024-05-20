@@ -8,10 +8,11 @@ end
 show(io, thiserr::StateError) = print(io, "ZMQ: ", thiserr.msg)
 
 # Basic functions
-zmq_errno() = ccall((:zmq_errno, libzmq), Cint, ())
+
 function jl_zmq_error_str()
-    errno = zmq_errno()
-    c_strerror = ccall((:zmq_strerror, libzmq), Ptr{UInt8}, (Cint,), errno)
+    errno = lib.zmq_errno()
+    c_strerror = lib.zmq_strerror(errno)
+
     if c_strerror != C_NULL
         strerror = unsafe_string(c_strerror)
         return strerror

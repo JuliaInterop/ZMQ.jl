@@ -3,15 +3,10 @@
 
 ############################################################################
 
-msg_send(socket::Socket, zmsg::_MessageOrRef, flags::Integer) =
-    ccall((:zmq_msg_send, libzmq), Cint, (Ref{_Message}, Ptr{Cvoid}, Cint), zmsg, socket, flags)
-msg_send(socket::Socket, zmsg::Message, flags::Integer) =
-    ccall((:zmq_msg_send, libzmq), Cint, (Ref{Message}, Ptr{Cvoid}, Cint), zmsg, socket, flags)
-
 function _send(socket::Socket, zmsg, more::Bool=false)
     while true
-        if -1 == msg_send(socket, zmsg, (ZMQ_SNDMORE*more) | ZMQ_DONTWAIT)
-            zmq_errno() == EAGAIN || throw(StateError(jl_zmq_error_str()))
+        if -1 == lib.zmq_msg_send(zmsg, socket, (ZMQ_SNDMORE*more) | ZMQ_DONTWAIT)
+            lib.zmq_errno() == EAGAIN || throw(StateError(jl_zmq_error_str()))
             while (socket.events & POLLOUT) == 0
                 wait(socket)
             end
@@ -67,15 +62,10 @@ end
 
 ############################################################################
 
-msg_recv(socket::Socket, zmsg::_MessageOrRef, flags::Integer) =
-    ccall((:zmq_msg_recv, libzmq), Cint, (Ref{_Message}, Ptr{Cvoid}, Cint), zmsg, socket, flags)
-msg_recv(socket::Socket, zmsg::Message, flags::Integer) =
-    ccall((:zmq_msg_recv, libzmq), Cint, (Ref{Message}, Ptr{Cvoid}, Cint), zmsg, socket, flags)
-
 function _recv!(socket::Socket, zmsg)
     while true
-        if -1 == msg_recv(socket, zmsg, ZMQ_DONTWAIT)
-            zmq_errno() == EAGAIN || throw(StateError(jl_zmq_error_str()))
+        if -1 == lib.zmq_msg_recv(zmsg, socket, ZMQ_DONTWAIT)
+            lib.zmq_errno() == EAGAIN || throw(StateError(jl_zmq_error_str()))
             while socket.events & POLLIN== 0
                 wait(socket)
             end

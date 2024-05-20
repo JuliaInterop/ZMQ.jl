@@ -38,7 +38,7 @@ mutable struct Message <: AbstractArray{UInt8,1}
     function Message()
         zmsg = new()
         setfield!(zmsg, :handle, C_NULL)
-        rc = ccall((:zmq_msg_init, libzmq), Cint, (Ref{Message},), zmsg)
+        rc = lib.zmq_msg_init(zmsg)
         if rc != 0
             throw(StateError(jl_zmq_error_str()))
         end
@@ -54,7 +54,7 @@ mutable struct Message <: AbstractArray{UInt8,1}
     function Message(len::Integer)
         zmsg = new()
         setfield!(zmsg, :handle, C_NULL)
-        rc = ccall((:zmq_msg_init_size, libzmq), Cint, (Ref{Message}, Csize_t), zmsg, len)
+        rc = lib.zmq_msg_init_size(zmsg, len)
         if rc != 0
             throw(StateError(jl_zmq_error_str()))
         end
@@ -74,8 +74,7 @@ mutable struct Message <: AbstractArray{UInt8,1}
         zmsg = new()
         setfield!(zmsg, :handle, gc_protect_handle(origin))
         gc_free_fn_c = @cfunction(gc_free_fn, Cint, (Ptr{Cvoid}, Ptr{Cvoid}))
-        rc = ccall((:zmq_msg_init_data, libzmq), Cint, (Ref{Message}, Ptr{T}, Csize_t, Ptr{Cvoid}, Ptr{Cvoid}),
-                   zmsg, m, len, gc_free_fn_c, getfield(zmsg, :handle))
+        rc = lib.zmq_msg_init_data(zmsg, m, len, gc_free_fn_c, getfield(zmsg, :handle))
         if rc != 0
             gc_free_fn(C_NULL, getfield(zmsg, :handle)) # don't leak memory on error
             throw(StateError(jl_zmq_error_str()))
@@ -139,9 +138,9 @@ isfreed(m::Message) = !haskey(gc_protect, getfield(m, :handle))
 
 # AbstractArray behaviors:
 Base.similar(a::Message, ::Type{T}, dims::Dims) where {T} = Array{T}(undef, dims) # ?
-Base.length(zmsg::Message) = Int(ccall((:zmq_msg_size, libzmq), Csize_t, (Ref{Message},), zmsg))
+Base.length(zmsg::Message) = Int(lib.zmq_msg_size(zmsg))
 Base.size(zmsg::Message) = (length(zmsg),)
-Base.unsafe_convert(::Type{Ptr{UInt8}}, zmsg::Message) = ccall((:zmq_msg_data, libzmq), Ptr{UInt8}, (Ref{Message},), zmsg)
+Base.unsafe_convert(::Type{Ptr{UInt8}}, zmsg::Message) = Ptr{UInt8}(lib.zmq_msg_data(zmsg))
 function Base.getindex(a::Message, i::Integer)
     @boundscheck if i < 1 || i > length(a)
         throw(BoundsError())
@@ -173,7 +172,7 @@ end
 # Close a message. You should not need to call this manually (let the
 # finalizer do it).
 function Base.close(zmsg::Message)
-    rc = ccall((:zmq_msg_close, libzmq), Cint, (Ref{Message},), zmsg)
+    rc = lib.zmq_msg_close(zmsg)
     if rc != 0
         throw(StateError(jl_zmq_error_str()))
     end
@@ -181,14 +180,14 @@ function Base.close(zmsg::Message)
 end
 
 function _get(zmsg::Message, property::Integer)
-    val = ccall((:zmq_msg_get, libzmq), Cint, (Ref{Message}, Cint), zmsg, property)
+    val = lib.zmq_msg_get(zmsg, property)
     if val < 0
         throw(StateError(jl_zmq_error_str()))
     end
     val
 end
 function _set(zmsg::Message, property::Integer, value::Integer)
-    rc = ccall((:zmq_msg_set, libzmq), Cint, (Ref{Message}, Cint, Cint), zmsg, property, value)
+    rc = lib.zmq_msg_set(zmsg, property, value)
     if rc < 0
         throw(StateError(jl_zmq_error_str()))
     end

@@ -30,9 +30,7 @@ for (fset, fget, k, T) in [
     ]
     if fset != nothing
         @eval function $(Symbol("_",fset))(socket::Socket, option_val::Integer)
-            rc = ccall((:zmq_setsockopt, libzmq), Cint,
-                       (Ptr{Cvoid}, Cint, Ref{$T}, Csize_t),
-                       socket, $k, option_val, sizeof($T))
+            rc = lib.zmq_setsockopt(socket, $k, Ref{$T}(option_val), sizeof($T))
             if rc != 0
                 throw(StateError(jl_zmq_error_str()))
             end
@@ -43,9 +41,7 @@ for (fset, fget, k, T) in [
     if fget != nothing
         @eval function $(Symbol("_",fget))(socket::Socket)
             val = Ref{$T}()
-            rc = ccall((:zmq_getsockopt, libzmq), Cint,
-                       (Ptr{Cvoid}, Cint, Ref{$T}, Ref{Csize_t}),
-                       socket, $k, val, sizeof($T))
+            rc = lib.zmq_getsockopt(socket, $k, val, Ref(Csize_t(sizeof($T))))
             if rc != 0
                 throw(StateError(jl_zmq_error_str()))
             end
@@ -67,9 +63,7 @@ for (f,k) in ((:subscribe,6), (:unsubscribe,7))
     f_ = Symbol(f, "_")
     @eval begin
         function $f_(socket::Socket, filter::Ptr{T}, len::Integer) where {T}
-            rc = ccall((:zmq_setsockopt, libzmq), Cint,
-                       (Ptr{Cvoid}, Cint, Ptr{T}, Csize_t),
-                       socket, $k, filter, len)
+            rc = lib.zmq_setsockopt(socket, $k, filter, len)
             if rc != 0
                 throw(StateError(jl_zmq_error_str()))
             end
@@ -92,9 +86,11 @@ for (fset, fget, k) in [
             if sizeof(option_val) > 255
                 throw(StateError("option value too large"))
             end
-            rc = ccall((:zmq_setsockopt, libzmq), Cint,
-                       (Ptr{Cvoid}, Cint, Ptr{UInt8}, Csize_t),
-                       socket, $k, option_val, sizeof(option_val))
+
+            GC.@preserve option_val begin
+                string_ptr = Base.unsafe_convert(Ptr{UInt8}, option_val)
+                rc = lib.zmq_setsockopt(socket, $k, string_ptr, sizeof(option_val))
+            end
             if rc != 0
                 throw(StateError(jl_zmq_error_str()))
             end
@@ -105,9 +101,7 @@ for (fset, fget, k) in [
         @eval function ($fget)(socket::Socket)
             buf = Base.StringVector(255)
             len = Ref{Csize_t}(sizeof(buf))
-            rc = ccall((:zmq_getsockopt, libzmq), Cint,
-                       (Ptr{Cvoid}, Cint, Ptr{UInt8}, Ref{Csize_t}),
-                       socket, $k, buf, len)
+            rc = lib.zmq_getsockopt(socket, $k, buf, len)
             if rc != 0
                 throw(StateError(jl_zmq_error_str()))
             end

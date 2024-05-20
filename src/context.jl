@@ -3,7 +3,7 @@
 
 # the low-level context constructor
 function _ctx_new()
-    p = ccall((:zmq_ctx_new, libzmq), Ptr{Cvoid},  ())
+    p = lib.zmq_ctx_new()
     if p == C_NULL
         throw(StateError(jl_zmq_error_str()))
     end
@@ -73,7 +73,7 @@ function Base.close(ctx::Context)
             end
         end
         empty!(getfield(ctx, :sockets))
-        rc = ccall((:zmq_ctx_destroy, libzmq), Cint,  (Ptr{Cvoid},), ctx)
+        rc = lib.zmq_ctx_destroy(ctx)
         setfield!(ctx, :data, C_NULL)
         if rc != 0
             throw(StateError(jl_zmq_error_str()))
@@ -83,14 +83,14 @@ end
 @deprecate term(ctx::Context) close(ctx)
 
 function _get(ctx::Context, option::Integer)
-    val = ccall((:zmq_ctx_get, libzmq), Cint, (Ptr{Cvoid}, Cint), ctx, option)
+    val = lib.zmq_ctx_get(ctx, option)
     if val < 0
         throw(StateError(jl_zmq_error_str()))
     end
     return val
 end
 function _set(ctx::Context, option::Integer, value::Integer)
-    rc = ccall((:zmq_ctx_set, libzmq), Cint, (Ptr{Cvoid}, Cint, Cint), ctx, option, value)
+    rc = lib.zmq_ctx_set(ctx, option, value)
     if rc != 0
         throw(StateError(jl_zmq_error_str()))
     end

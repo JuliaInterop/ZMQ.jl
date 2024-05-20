@@ -1,7 +1,6 @@
 # Support for ZeroMQ, a network and interprocess communication library
 
 module ZMQ
-import ZeroMQ_jll: libzmq
 
 using Base.Libc: EAGAIN
 using FileWatching: UV_READABLE, uv_pollcb, FDWatcher
@@ -19,7 +18,7 @@ export
     #Sockets
     connect, bind, send, recv
 
-
+include("bindings.jl")
 include("constants.jl")
 include("optutil.jl")
 include("error.jl")
@@ -27,6 +26,7 @@ include("context.jl")
 include("socket.jl")
 include("sockopts.jl")
 include("message.jl")
+include("msg_bindings.jl")
 include("comm.jl")
 
 """
@@ -38,7 +38,7 @@ function lib_version()
     major = Ref{Cint}()
     minor = Ref{Cint}()
     patch = Ref{Cint}()
-    ccall((:zmq_version, libzmq), Cvoid, (Ptr{Cint}, Ptr{Cint}, Ptr{Cint}), major, minor, patch)
+    lib.zmq_version(major, minor, patch)
     return VersionNumber(major[], minor[], patch[])
 end
 
