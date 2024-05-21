@@ -1,4 +1,5 @@
 import Clang
+import Clang.Generators: FunctionProto
 import ZeroMQ_jll
 import MacroTools: @capture, postwalk, prettify
 
@@ -51,9 +52,37 @@ function get_msg_methods(ctx, module_name)
     return methods
 end
 
+# See:
+# https://github.com/zeromq/libzmq/blob/c2fae81460d9d39a896da7b3f72484d23a172fa7/include/zmq.h#L582-L611
+const undocumented_functions = [:zmq_stopwatch_start,
+                                :zmq_stopwatch_intermediate,
+                                :zmq_stopwatch_stop,
+                                :zmq_sleep,
+                                :zmq_threadstart,
+                                :zmq_threadclose]
+function get_docs(node, doc)
+    # Only add docstrings for functions
+    if !(node.type isa FunctionProto)
+        return doc
+    end
+
+    url_prefix = "https://libzmq.readthedocs.io/en/latest"
+
+    # The timer functions are all documented on a single page
+    if startswith(string(node.id), "zmq_timers")
+        return ["[Upstream documentation]($(url_prefix)/zmq_timers.html)."]
+    elseif node.id in undocumented_functions
+        return ["This is an undocumented function, not part of the formal ZMQ API."]
+    else
+        # For all the others, generate the URL from the function name
+        return ["[Upstream documentation]($(url_prefix)/$(node.id).html)."]
+    end
+end
+
 cd(@__DIR__) do
     # Set the options
     options = Clang.load_options(joinpath(@__DIR__, "generator.toml"))
+    options["general"]["callback_documentation"] = get_docs
     header = joinpath(ZeroMQ_jll.artifact_dir, "include", "zmq.h")
     args = Clang.get_default_args()
 

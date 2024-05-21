@@ -3,48 +3,76 @@ module lib
 import ZeroMQ_jll: libzmq
 
 
+"""
+    zmq_errno()
+
+[Upstream documentation](https://libzmq.readthedocs.io/en/latest/zmq_errno.html).
+"""
 function zmq_errno()
     @ccall libzmq.zmq_errno()::Cint
 end
 
+"""
+    zmq_strerror(errnum_)
+
+[Upstream documentation](https://libzmq.readthedocs.io/en/latest/zmq_strerror.html).
+"""
 function zmq_strerror(errnum_)
     @ccall libzmq.zmq_strerror(errnum_::Cint)::Ptr{Cchar}
 end
 
+"""
+    zmq_version(major_, minor_, patch_)
+
+[Upstream documentation](https://libzmq.readthedocs.io/en/latest/zmq_version.html).
+"""
 function zmq_version(major_, minor_, patch_)
     @ccall libzmq.zmq_version(major_::Ptr{Cint}, minor_::Ptr{Cint}, patch_::Ptr{Cint})::Cvoid
 end
 
+"""
+    zmq_ctx_new()
+
+[Upstream documentation](https://libzmq.readthedocs.io/en/latest/zmq_ctx_new.html).
+"""
 function zmq_ctx_new()
     @ccall libzmq.zmq_ctx_new()::Ptr{Cvoid}
 end
 
+"""
+    zmq_ctx_term(context_)
+
+[Upstream documentation](https://libzmq.readthedocs.io/en/latest/zmq_ctx_term.html).
+"""
 function zmq_ctx_term(context_)
     @ccall libzmq.zmq_ctx_term(context_::Ptr{Cvoid})::Cint
 end
 
+"""
+    zmq_ctx_shutdown(context_)
+
+[Upstream documentation](https://libzmq.readthedocs.io/en/latest/zmq_ctx_shutdown.html).
+"""
 function zmq_ctx_shutdown(context_)
     @ccall libzmq.zmq_ctx_shutdown(context_::Ptr{Cvoid})::Cint
 end
 
+"""
+    zmq_ctx_set(context_, option_, optval_)
+
+[Upstream documentation](https://libzmq.readthedocs.io/en/latest/zmq_ctx_set.html).
+"""
 function zmq_ctx_set(context_, option_, optval_)
     @ccall libzmq.zmq_ctx_set(context_::Ptr{Cvoid}, option_::Cint, optval_::Cint)::Cint
 end
 
+"""
+    zmq_ctx_get(context_, option_)
+
+[Upstream documentation](https://libzmq.readthedocs.io/en/latest/zmq_ctx_get.html).
+"""
 function zmq_ctx_get(context_, option_)
     @ccall libzmq.zmq_ctx_get(context_::Ptr{Cvoid}, option_::Cint)::Cint
-end
-
-function zmq_init(io_threads_)
-    @ccall libzmq.zmq_init(io_threads_::Cint)::Ptr{Cvoid}
-end
-
-function zmq_term(context_)
-    @ccall libzmq.zmq_term(context_::Ptr{Cvoid})::Cint
-end
-
-function zmq_ctx_destroy(context_)
-    @ccall libzmq.zmq_ctx_destroy(context_::Ptr{Cvoid})::Cint
 end
 
 struct zmq_msg_t
@@ -70,106 +98,236 @@ end
 # typedef void ( zmq_free_fn ) ( void * data_ , void * hint_ )
 const zmq_free_fn = Cvoid
 
+"""
+    zmq_msg_init(msg_)
+
+[Upstream documentation](https://libzmq.readthedocs.io/en/latest/zmq_msg_init.html).
+"""
 function zmq_msg_init(msg_)
     @ccall libzmq.zmq_msg_init(msg_::Ptr{zmq_msg_t})::Cint
 end
 
+"""
+    zmq_msg_init_size(msg_, size_)
+
+[Upstream documentation](https://libzmq.readthedocs.io/en/latest/zmq_msg_init_size.html).
+"""
 function zmq_msg_init_size(msg_, size_)
     @ccall libzmq.zmq_msg_init_size(msg_::Ptr{zmq_msg_t}, size_::Csize_t)::Cint
 end
 
+"""
+    zmq_msg_init_data(msg_, data_, size_, ffn_, hint_)
+
+[Upstream documentation](https://libzmq.readthedocs.io/en/latest/zmq_msg_init_data.html).
+"""
 function zmq_msg_init_data(msg_, data_, size_, ffn_, hint_)
     @ccall libzmq.zmq_msg_init_data(msg_::Ptr{zmq_msg_t}, data_::Ptr{Cvoid}, size_::Csize_t, ffn_::Ptr{zmq_free_fn}, hint_::Ptr{Cvoid})::Cint
 end
 
+"""
+    zmq_msg_send(msg_, s_, flags_)
+
+[Upstream documentation](https://libzmq.readthedocs.io/en/latest/zmq_msg_send.html).
+"""
 function zmq_msg_send(msg_, s_, flags_)
     @ccall libzmq.zmq_msg_send(msg_::Ptr{zmq_msg_t}, s_::Ptr{Cvoid}, flags_::Cint)::Cint
 end
 
+"""
+    zmq_msg_recv(msg_, s_, flags_)
+
+[Upstream documentation](https://libzmq.readthedocs.io/en/latest/zmq_msg_recv.html).
+"""
 function zmq_msg_recv(msg_, s_, flags_)
     @ccall libzmq.zmq_msg_recv(msg_::Ptr{zmq_msg_t}, s_::Ptr{Cvoid}, flags_::Cint)::Cint
 end
 
+"""
+    zmq_msg_close(msg_)
+
+[Upstream documentation](https://libzmq.readthedocs.io/en/latest/zmq_msg_close.html).
+"""
 function zmq_msg_close(msg_)
     @ccall libzmq.zmq_msg_close(msg_::Ptr{zmq_msg_t})::Cint
 end
 
+"""
+    zmq_msg_move(dest_, src_)
+
+[Upstream documentation](https://libzmq.readthedocs.io/en/latest/zmq_msg_move.html).
+"""
 function zmq_msg_move(dest_, src_)
     @ccall libzmq.zmq_msg_move(dest_::Ptr{zmq_msg_t}, src_::Ptr{zmq_msg_t})::Cint
 end
 
+"""
+    zmq_msg_copy(dest_, src_)
+
+[Upstream documentation](https://libzmq.readthedocs.io/en/latest/zmq_msg_copy.html).
+"""
 function zmq_msg_copy(dest_, src_)
     @ccall libzmq.zmq_msg_copy(dest_::Ptr{zmq_msg_t}, src_::Ptr{zmq_msg_t})::Cint
 end
 
+"""
+    zmq_msg_data(msg_)
+
+[Upstream documentation](https://libzmq.readthedocs.io/en/latest/zmq_msg_data.html).
+"""
 function zmq_msg_data(msg_)
     @ccall libzmq.zmq_msg_data(msg_::Ptr{zmq_msg_t})::Ptr{Cvoid}
 end
 
+"""
+    zmq_msg_size(msg_)
+
+[Upstream documentation](https://libzmq.readthedocs.io/en/latest/zmq_msg_size.html).
+"""
 function zmq_msg_size(msg_)
     @ccall libzmq.zmq_msg_size(msg_::Ptr{zmq_msg_t})::Csize_t
 end
 
+"""
+    zmq_msg_more(msg_)
+
+[Upstream documentation](https://libzmq.readthedocs.io/en/latest/zmq_msg_more.html).
+"""
 function zmq_msg_more(msg_)
     @ccall libzmq.zmq_msg_more(msg_::Ptr{zmq_msg_t})::Cint
 end
 
+"""
+    zmq_msg_get(msg_, property_)
+
+[Upstream documentation](https://libzmq.readthedocs.io/en/latest/zmq_msg_get.html).
+"""
 function zmq_msg_get(msg_, property_)
     @ccall libzmq.zmq_msg_get(msg_::Ptr{zmq_msg_t}, property_::Cint)::Cint
 end
 
+"""
+    zmq_msg_set(msg_, property_, optval_)
+
+[Upstream documentation](https://libzmq.readthedocs.io/en/latest/zmq_msg_set.html).
+"""
 function zmq_msg_set(msg_, property_, optval_)
     @ccall libzmq.zmq_msg_set(msg_::Ptr{zmq_msg_t}, property_::Cint, optval_::Cint)::Cint
 end
 
+"""
+    zmq_msg_gets(msg_, property_)
+
+[Upstream documentation](https://libzmq.readthedocs.io/en/latest/zmq_msg_gets.html).
+"""
 function zmq_msg_gets(msg_, property_)
     @ccall libzmq.zmq_msg_gets(msg_::Ptr{zmq_msg_t}, property_::Ptr{Cchar})::Ptr{Cchar}
 end
 
+"""
+    zmq_socket(arg1, type_)
+
+[Upstream documentation](https://libzmq.readthedocs.io/en/latest/zmq_socket.html).
+"""
 function zmq_socket(arg1, type_)
     @ccall libzmq.zmq_socket(arg1::Ptr{Cvoid}, type_::Cint)::Ptr{Cvoid}
 end
 
+"""
+    zmq_close(s_)
+
+[Upstream documentation](https://libzmq.readthedocs.io/en/latest/zmq_close.html).
+"""
 function zmq_close(s_)
     @ccall libzmq.zmq_close(s_::Ptr{Cvoid})::Cint
 end
 
+"""
+    zmq_setsockopt(s_, option_, optval_, optvallen_)
+
+[Upstream documentation](https://libzmq.readthedocs.io/en/latest/zmq_setsockopt.html).
+"""
 function zmq_setsockopt(s_, option_, optval_, optvallen_)
     @ccall libzmq.zmq_setsockopt(s_::Ptr{Cvoid}, option_::Cint, optval_::Ptr{Cvoid}, optvallen_::Csize_t)::Cint
 end
 
+"""
+    zmq_getsockopt(s_, option_, optval_, optvallen_)
+
+[Upstream documentation](https://libzmq.readthedocs.io/en/latest/zmq_getsockopt.html).
+"""
 function zmq_getsockopt(s_, option_, optval_, optvallen_)
     @ccall libzmq.zmq_getsockopt(s_::Ptr{Cvoid}, option_::Cint, optval_::Ptr{Cvoid}, optvallen_::Ptr{Csize_t})::Cint
 end
 
+"""
+    zmq_bind(s_, addr_)
+
+[Upstream documentation](https://libzmq.readthedocs.io/en/latest/zmq_bind.html).
+"""
 function zmq_bind(s_, addr_)
     @ccall libzmq.zmq_bind(s_::Ptr{Cvoid}, addr_::Ptr{Cchar})::Cint
 end
 
+"""
+    zmq_connect(s_, addr_)
+
+[Upstream documentation](https://libzmq.readthedocs.io/en/latest/zmq_connect.html).
+"""
 function zmq_connect(s_, addr_)
     @ccall libzmq.zmq_connect(s_::Ptr{Cvoid}, addr_::Ptr{Cchar})::Cint
 end
 
+"""
+    zmq_unbind(s_, addr_)
+
+[Upstream documentation](https://libzmq.readthedocs.io/en/latest/zmq_unbind.html).
+"""
 function zmq_unbind(s_, addr_)
     @ccall libzmq.zmq_unbind(s_::Ptr{Cvoid}, addr_::Ptr{Cchar})::Cint
 end
 
+"""
+    zmq_disconnect(s_, addr_)
+
+[Upstream documentation](https://libzmq.readthedocs.io/en/latest/zmq_disconnect.html).
+"""
 function zmq_disconnect(s_, addr_)
     @ccall libzmq.zmq_disconnect(s_::Ptr{Cvoid}, addr_::Ptr{Cchar})::Cint
 end
 
+"""
+    zmq_send(s_, buf_, len_, flags_)
+
+[Upstream documentation](https://libzmq.readthedocs.io/en/latest/zmq_send.html).
+"""
 function zmq_send(s_, buf_, len_, flags_)
     @ccall libzmq.zmq_send(s_::Ptr{Cvoid}, buf_::Ptr{Cvoid}, len_::Csize_t, flags_::Cint)::Cint
 end
 
+"""
+    zmq_send_const(s_, buf_, len_, flags_)
+
+[Upstream documentation](https://libzmq.readthedocs.io/en/latest/zmq_send_const.html).
+"""
 function zmq_send_const(s_, buf_, len_, flags_)
     @ccall libzmq.zmq_send_const(s_::Ptr{Cvoid}, buf_::Ptr{Cvoid}, len_::Csize_t, flags_::Cint)::Cint
 end
 
+"""
+    zmq_recv(s_, buf_, len_, flags_)
+
+[Upstream documentation](https://libzmq.readthedocs.io/en/latest/zmq_recv.html).
+"""
 function zmq_recv(s_, buf_, len_, flags_)
     @ccall libzmq.zmq_recv(s_::Ptr{Cvoid}, buf_::Ptr{Cvoid}, len_::Csize_t, flags_::Cint)::Cint
 end
 
+"""
+    zmq_socket_monitor(s_, addr_, events_)
+
+[Upstream documentation](https://libzmq.readthedocs.io/en/latest/zmq_socket_monitor.html).
+"""
 function zmq_socket_monitor(s_, addr_, events_)
     @ccall libzmq.zmq_socket_monitor(s_::Ptr{Cvoid}, addr_::Ptr{Cchar}, events_::Cint)::Cint
 end
@@ -183,80 +341,128 @@ mutable struct zmq_pollitem_t
     revents::Cshort
 end
 
+"""
+    zmq_poll(items_, nitems_, timeout_)
+
+[Upstream documentation](https://libzmq.readthedocs.io/en/latest/zmq_poll.html).
+"""
 function zmq_poll(items_, nitems_, timeout_)
     @ccall libzmq.zmq_poll(items_::Ptr{zmq_pollitem_t}, nitems_::Cint, timeout_::Clong)::Cint
 end
 
+"""
+    zmq_proxy(frontend_, backend_, capture_)
+
+[Upstream documentation](https://libzmq.readthedocs.io/en/latest/zmq_proxy.html).
+"""
 function zmq_proxy(frontend_, backend_, capture_)
     @ccall libzmq.zmq_proxy(frontend_::Ptr{Cvoid}, backend_::Ptr{Cvoid}, capture_::Ptr{Cvoid})::Cint
 end
 
+"""
+    zmq_proxy_steerable(frontend_, backend_, capture_, control_)
+
+[Upstream documentation](https://libzmq.readthedocs.io/en/latest/zmq_proxy_steerable.html).
+"""
 function zmq_proxy_steerable(frontend_, backend_, capture_, control_)
     @ccall libzmq.zmq_proxy_steerable(frontend_::Ptr{Cvoid}, backend_::Ptr{Cvoid}, capture_::Ptr{Cvoid}, control_::Ptr{Cvoid})::Cint
 end
 
+"""
+    zmq_has(capability_)
+
+[Upstream documentation](https://libzmq.readthedocs.io/en/latest/zmq_has.html).
+"""
 function zmq_has(capability_)
     @ccall libzmq.zmq_has(capability_::Ptr{Cchar})::Cint
 end
 
-function zmq_device(type_, frontend_, backend_)
-    @ccall libzmq.zmq_device(type_::Cint, frontend_::Ptr{Cvoid}, backend_::Ptr{Cvoid})::Cint
-end
+"""
+    zmq_z85_encode(dest_, data_, size_)
 
-function zmq_sendmsg(s_, msg_, flags_)
-    @ccall libzmq.zmq_sendmsg(s_::Ptr{Cvoid}, msg_::Ptr{zmq_msg_t}, flags_::Cint)::Cint
-end
-
-function zmq_recvmsg(s_, msg_, flags_)
-    @ccall libzmq.zmq_recvmsg(s_::Ptr{Cvoid}, msg_::Ptr{zmq_msg_t}, flags_::Cint)::Cint
-end
-
-mutable struct iovec end
-
-function zmq_sendiov(s_, iov_, count_, flags_)
-    @ccall libzmq.zmq_sendiov(s_::Ptr{Cvoid}, iov_::Ptr{iovec}, count_::Csize_t, flags_::Cint)::Cint
-end
-
-function zmq_recviov(s_, iov_, count_, flags_)
-    @ccall libzmq.zmq_recviov(s_::Ptr{Cvoid}, iov_::Ptr{iovec}, count_::Ptr{Csize_t}, flags_::Cint)::Cint
-end
-
+[Upstream documentation](https://libzmq.readthedocs.io/en/latest/zmq_z85_encode.html).
+"""
 function zmq_z85_encode(dest_, data_, size_)
     @ccall libzmq.zmq_z85_encode(dest_::Ptr{Cchar}, data_::Ptr{UInt8}, size_::Csize_t)::Ptr{Cchar}
 end
 
+"""
+    zmq_z85_decode(dest_, string_)
+
+[Upstream documentation](https://libzmq.readthedocs.io/en/latest/zmq_z85_decode.html).
+"""
 function zmq_z85_decode(dest_, string_)
     @ccall libzmq.zmq_z85_decode(dest_::Ptr{UInt8}, string_::Ptr{Cchar})::Ptr{UInt8}
 end
 
+"""
+    zmq_curve_keypair(z85_public_key_, z85_secret_key_)
+
+[Upstream documentation](https://libzmq.readthedocs.io/en/latest/zmq_curve_keypair.html).
+"""
 function zmq_curve_keypair(z85_public_key_, z85_secret_key_)
     @ccall libzmq.zmq_curve_keypair(z85_public_key_::Ptr{Cchar}, z85_secret_key_::Ptr{Cchar})::Cint
 end
 
+"""
+    zmq_curve_public(z85_public_key_, z85_secret_key_)
+
+[Upstream documentation](https://libzmq.readthedocs.io/en/latest/zmq_curve_public.html).
+"""
 function zmq_curve_public(z85_public_key_, z85_secret_key_)
     @ccall libzmq.zmq_curve_public(z85_public_key_::Ptr{Cchar}, z85_secret_key_::Ptr{Cchar})::Cint
 end
 
+"""
+    zmq_atomic_counter_new()
+
+[Upstream documentation](https://libzmq.readthedocs.io/en/latest/zmq_atomic_counter_new.html).
+"""
 function zmq_atomic_counter_new()
     @ccall libzmq.zmq_atomic_counter_new()::Ptr{Cvoid}
 end
 
+"""
+    zmq_atomic_counter_set(counter_, value_)
+
+[Upstream documentation](https://libzmq.readthedocs.io/en/latest/zmq_atomic_counter_set.html).
+"""
 function zmq_atomic_counter_set(counter_, value_)
     @ccall libzmq.zmq_atomic_counter_set(counter_::Ptr{Cvoid}, value_::Cint)::Cvoid
 end
 
+"""
+    zmq_atomic_counter_inc(counter_)
+
+[Upstream documentation](https://libzmq.readthedocs.io/en/latest/zmq_atomic_counter_inc.html).
+"""
 function zmq_atomic_counter_inc(counter_)
     @ccall libzmq.zmq_atomic_counter_inc(counter_::Ptr{Cvoid})::Cint
 end
 
+"""
+    zmq_atomic_counter_dec(counter_)
+
+[Upstream documentation](https://libzmq.readthedocs.io/en/latest/zmq_atomic_counter_dec.html).
+"""
 function zmq_atomic_counter_dec(counter_)
     @ccall libzmq.zmq_atomic_counter_dec(counter_::Ptr{Cvoid})::Cint
 end
 
+"""
+    zmq_atomic_counter_value(counter_)
+
+[Upstream documentation](https://libzmq.readthedocs.io/en/latest/zmq_atomic_counter_value.html).
+"""
 function zmq_atomic_counter_value(counter_)
     @ccall libzmq.zmq_atomic_counter_value(counter_::Ptr{Cvoid})::Cint
 end
 
+"""
+    zmq_atomic_counter_destroy(counter_p_)
+
+[Upstream documentation](https://libzmq.readthedocs.io/en/latest/zmq_atomic_counter_destroy.html).
+"""
 function zmq_atomic_counter_destroy(counter_p_)
     @ccall libzmq.zmq_atomic_counter_destroy(counter_p_::Ptr{Ptr{Cvoid}})::Cvoid
 end
@@ -264,50 +470,110 @@ end
 # typedef void ( zmq_timer_fn ) ( int timer_id , void * arg )
 const zmq_timer_fn = Cvoid
 
+"""
+    zmq_timers_new()
+
+[Upstream documentation](https://libzmq.readthedocs.io/en/latest/zmq_timers.html).
+"""
 function zmq_timers_new()
     @ccall libzmq.zmq_timers_new()::Ptr{Cvoid}
 end
 
+"""
+    zmq_timers_destroy(timers_p)
+
+[Upstream documentation](https://libzmq.readthedocs.io/en/latest/zmq_timers.html).
+"""
 function zmq_timers_destroy(timers_p)
     @ccall libzmq.zmq_timers_destroy(timers_p::Ptr{Ptr{Cvoid}})::Cint
 end
 
+"""
+    zmq_timers_add(timers, interval, handler, arg)
+
+[Upstream documentation](https://libzmq.readthedocs.io/en/latest/zmq_timers.html).
+"""
 function zmq_timers_add(timers, interval, handler, arg)
     @ccall libzmq.zmq_timers_add(timers::Ptr{Cvoid}, interval::Csize_t, handler::zmq_timer_fn, arg::Ptr{Cvoid})::Cint
 end
 
+"""
+    zmq_timers_cancel(timers, timer_id)
+
+[Upstream documentation](https://libzmq.readthedocs.io/en/latest/zmq_timers.html).
+"""
 function zmq_timers_cancel(timers, timer_id)
     @ccall libzmq.zmq_timers_cancel(timers::Ptr{Cvoid}, timer_id::Cint)::Cint
 end
 
+"""
+    zmq_timers_set_interval(timers, timer_id, interval)
+
+[Upstream documentation](https://libzmq.readthedocs.io/en/latest/zmq_timers.html).
+"""
 function zmq_timers_set_interval(timers, timer_id, interval)
     @ccall libzmq.zmq_timers_set_interval(timers::Ptr{Cvoid}, timer_id::Cint, interval::Csize_t)::Cint
 end
 
+"""
+    zmq_timers_reset(timers, timer_id)
+
+[Upstream documentation](https://libzmq.readthedocs.io/en/latest/zmq_timers.html).
+"""
 function zmq_timers_reset(timers, timer_id)
     @ccall libzmq.zmq_timers_reset(timers::Ptr{Cvoid}, timer_id::Cint)::Cint
 end
 
+"""
+    zmq_timers_timeout(timers)
+
+[Upstream documentation](https://libzmq.readthedocs.io/en/latest/zmq_timers.html).
+"""
 function zmq_timers_timeout(timers)
     @ccall libzmq.zmq_timers_timeout(timers::Ptr{Cvoid})::Clong
 end
 
+"""
+    zmq_timers_execute(timers)
+
+[Upstream documentation](https://libzmq.readthedocs.io/en/latest/zmq_timers.html).
+"""
 function zmq_timers_execute(timers)
     @ccall libzmq.zmq_timers_execute(timers::Ptr{Cvoid})::Cint
 end
 
+"""
+    zmq_stopwatch_start()
+
+This is an undocumented function, not part of the formal ZMQ API.
+"""
 function zmq_stopwatch_start()
     @ccall libzmq.zmq_stopwatch_start()::Ptr{Cvoid}
 end
 
+"""
+    zmq_stopwatch_intermediate(watch_)
+
+This is an undocumented function, not part of the formal ZMQ API.
+"""
 function zmq_stopwatch_intermediate(watch_)
     @ccall libzmq.zmq_stopwatch_intermediate(watch_::Ptr{Cvoid})::Culong
 end
 
+"""
+    zmq_stopwatch_stop(watch_)
+
+This is an undocumented function, not part of the formal ZMQ API.
+"""
 function zmq_stopwatch_stop(watch_)
     @ccall libzmq.zmq_stopwatch_stop(watch_::Ptr{Cvoid})::Culong
 end
 
+"""
+    zmq_sleep(seconds_)
+
+This is an undocumented function, not part of the formal ZMQ API.
+"""
 function zmq_sleep(seconds_)
     @ccall libzmq.zmq_sleep(seconds_::Cint)::Cvoid
 end
@@ -315,10 +581,20 @@ end
 # typedef void ( zmq_thread_fn ) ( void * )
 const zmq_thread_fn = Cvoid
 
+"""
+    zmq_threadstart(func_, arg_)
+
+This is an undocumented function, not part of the formal ZMQ API.
+"""
 function zmq_threadstart(func_, arg_)
     @ccall libzmq.zmq_threadstart(func_::Ptr{zmq_thread_fn}, arg_::Ptr{Cvoid})::Ptr{Cvoid}
 end
 
+"""
+    zmq_threadclose(thread_)
+
+This is an undocumented function, not part of the formal ZMQ API.
+"""
 function zmq_threadclose(thread_)
     @ccall libzmq.zmq_threadclose(thread_::Ptr{Cvoid})::Cvoid
 end
