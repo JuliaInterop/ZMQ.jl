@@ -14,7 +14,7 @@ mutable struct Context
     data::Ptr{Cvoid}
 
     # need to keep a list of weakrefs to sockets for this Context in order to
-    # close them before finalizing (otherwise zmq_term will hang)
+    # close them before finalizing (otherwise zmq_ctx_term will hang)
     sockets::Vector{WeakRef}
 
     function Context()
@@ -73,7 +73,7 @@ function Base.close(ctx::Context)
             end
         end
         empty!(getfield(ctx, :sockets))
-        rc = lib.zmq_ctx_destroy(ctx)
+        rc = lib.zmq_ctx_term(ctx)
         setfield!(ctx, :data, C_NULL)
         if rc != 0
             throw(StateError(jl_zmq_error_str()))
