@@ -58,8 +58,12 @@ import PrecompileTools: @compile_workload
 
     s2=Socket(REQ)
 
-    ZMQ.bind(s1, "tcp://*:5555")
-    ZMQ.connect(s2, "tcp://localhost:5555")
+    ZMQ.bind(s1, "tcp://localhost:*")
+    # Strip the trailing null-terminator
+    last_endpoint = s1.last_endpoint[1:end - 1]
+    # Parse the port from the endpoint
+    port = parse(Int, split(last_endpoint, ":")[end])
+    ZMQ.connect(s2, "tcp://localhost:$(port)")
 
     msg = Message("test request")
 
