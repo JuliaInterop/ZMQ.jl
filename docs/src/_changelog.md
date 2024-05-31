@@ -12,6 +12,7 @@ Changelog](https://keepachangelog.com).
 ### Added
 - Support for creating [`Message`](@ref)'s from the new `Memory` type in Julia
   1.11 ([#244]).
+- Full [Bindings](@ref) to libzmq ([#232]).
 
 ### Fixed
 - Fixed [`isfreed()`](@ref), which would previously return the wrong values
