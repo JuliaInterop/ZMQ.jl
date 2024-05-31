@@ -29,8 +29,8 @@ function get_msg_methods(ctx, module_name)
                     # Replace occurrences of `arg::Ptr{zmq_msg_t}` with
                     # `arg::Ref{Message}`.
                     new_body = postwalk(body) do x
-                        if @capture(x, arg_name_::T_) && T == :(Ptr{zmq_msg_t})
-                            :($arg_name::Ref{Message})
+                        if @capture(x, Ptr{T_}) && T == :(zmq_msg_t)
+                            :(Ref{Message})
                         else
                             x
                         end
