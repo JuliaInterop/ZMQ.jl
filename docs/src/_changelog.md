@@ -7,6 +7,11 @@ CurrentModule = ZMQ
 This documents notable changes in ZMQ.jl. The format is based on [Keep a
 Changelog](https://keepachangelog.com).
 
+## Unreleased
+
+### Added
+
+- [`lib_version()`](@ref) to get the libzmq version ([#240]).
 
 ## [v1.2.5] - 2024-05-28
 

@@ -29,13 +29,23 @@ include("sockopts.jl")
 include("message.jl")
 include("comm.jl")
 
-function __init__()
+"""
+    lib_version()
+
+Get the libzmq version number.
+"""
+function lib_version()
     major = Ref{Cint}()
     minor = Ref{Cint}()
     patch = Ref{Cint}()
     ccall((:zmq_version, libzmq), Cvoid, (Ptr{Cint}, Ptr{Cint}, Ptr{Cint}), major, minor, patch)
-    global version = VersionNumber(major[], minor[], patch[])
-    if version < v"3"
+    return VersionNumber(major[], minor[], patch[])
+end
+
+const version = lib_version()
+
+function __init__()
+    if lib_version() < v"3"
         error("ZMQ version $version < 3 is not supported")
     end
     atexit() do
