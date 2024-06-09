@@ -1,4 +1,12 @@
+```@meta
+CurrentModule = ZMQ
+```
+
 # Reference
+
+```@docs
+lib_version
+```
 
 ## Sockets
 

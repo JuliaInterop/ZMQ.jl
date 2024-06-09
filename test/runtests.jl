@@ -164,6 +164,10 @@ end
     @test !isopen(leaked_ctx)
 end
 
+@testset "Utilities" begin
+    @test ZMQ.lib_version() isa VersionNumber
+end
+
 @testset "Aqua.jl" begin
     Aqua.test_all(ZMQ)
 end
