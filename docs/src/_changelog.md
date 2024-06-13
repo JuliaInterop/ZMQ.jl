@@ -7,11 +7,16 @@ CurrentModule = ZMQ
 This documents notable changes in ZMQ.jl. The format is based on [Keep a
 Changelog](https://keepachangelog.com).
 
-## Unreleased
+## [v1.2.6] - 2024-06-13
 
 ### Added
 
 - [`lib_version()`](@ref) to get the libzmq version ([#240]).
+
+### Fixed
+
+- Fixed a precompilation bug that would cause creating a sysimage with
+  PackageCompiler.jl on Julia 1.6 to fail ([#242]).
 
 ## [v1.2.5] - 2024-05-28
 

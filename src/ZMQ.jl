@@ -85,6 +85,13 @@ import PrecompileTools: @compile_workload
     unsafe_string(ZMQ.recv(s2))
     ZMQ.close(s1)
     ZMQ.close(s2)
+
+    # Using the library like this workload will initialize ZMQ._context, which
+    # contains a pointer. This doesn't seem to play well with serialization on
+    # Julia 1.6 with PackageCompiler so we explicitly close it to reset the
+    # pointer.
+    # See: https://github.com/JuliaLang/julia/issues/46214
+    close(ZMQ._context)
 end
 
 end
