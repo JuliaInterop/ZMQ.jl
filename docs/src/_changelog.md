@@ -13,6 +13,11 @@ Changelog](https://keepachangelog.com).
 
 - [`lib_version()`](@ref) to get the libzmq version ([#240]).
 
+### Fixed
+
+- Fixed a precompilation bug that would cause creating a sysimage with
+  PackageCompiler.jl on Julia 1.6 to fail ([#242]).
+
 ## [v1.2.5] - 2024-05-28
 
 ### Fixed
