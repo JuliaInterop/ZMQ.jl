@@ -7,7 +7,7 @@ CurrentModule = ZMQ
 This documents notable changes in ZMQ.jl. The format is based on [Keep a
 Changelog](https://keepachangelog.com).
 
-## Unreleased
+## [v1.2.6] - 2024-06-13
 
 ### Added
 
