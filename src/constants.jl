@@ -2,32 +2,32 @@
 ## Constants
 
 # Context options
-const IO_THREADS = 1
-const MAX_SOCKETS = 2
-const IPV6 = 42
+const IO_THREADS = lib.ZMQ_IO_THREADS
+const MAX_SOCKETS = lib.ZMQ_MAX_SOCKETS
+const IPV6 = lib.ZMQ_IPV6
 
 "[PAIR](https://zeromq.org/socket-api/#pair-socket) socket."
-const PAIR = 0
+const PAIR = lib.ZMQ_PAIR
 "[PUB](https://zeromq.org/socket-api/#pub-socket) socket."
-const PUB = 1
+const PUB = lib.ZMQ_PUB
 "[SUB](https://zeromq.org/socket-api/#sub-socket) socket."
-const SUB = 2
+const SUB = lib.ZMQ_SUB
 "[REQ](https://zeromq.org/socket-api/#req-socket) socket."
-const REQ = 3
+const REQ = lib.ZMQ_REQ
 "[REP](https://zeromq.org/socket-api/#rep-socket) socket."
-const REP = 4
+const REP = lib.ZMQ_REP
 "[DEALER](https://zeromq.org/socket-api/#dealer-socket) socket."
-const DEALER = 5
+const DEALER = lib.ZMQ_DEALER
 "[ROUTER](https://zeromq.org/socket-api/#router-socket) socket."
-const ROUTER = 6
+const ROUTER = lib.ZMQ_ROUTER
 "[PULL](https://zeromq.org/socket-api/#pull-socket) socket."
-const PULL = 7
+const PULL = lib.ZMQ_PULL
 "[PUSH](https://zeromq.org/socket-api/#push-socket) socket."
-const PUSH = 8
+const PUSH = lib.ZMQ_PUSH
 "[XPUB](https://zeromq.org/socket-api/#xpub-socket) socket."
-const XPUB = 9
+const XPUB = lib.ZMQ_XPUB
 "[XSUB](https://zeromq.org/socket-api/#xsub-socket) socket."
-const XSUB = 10
+const XSUB = lib.ZMQ_XSUB
 """
 [XREQ](https://zeromq.org/socket-api/#dealer-socket) socket.
 
@@ -61,20 +61,20 @@ const UPSTREAM = PULL
 const DOWNSTREAM = PUSH
 
 #Message options
-const MORE = 1
+const MORE = lib.ZMQ_MORE
 const SNDMORE = true
 
 #IO Multiplexing
-const POLLIN = 1
-const POLLOUT = 2
-const POLLERR = 4
+const POLLIN = lib.ZMQ_POLLIN
+const POLLOUT = lib.ZMQ_POLLOUT
+const POLLERR = lib.ZMQ_POLLERR
 
 #Built in devices
-const STREAMER = 1
-const FORWARDER = 2
-const QUEUE = 3
+const STREAMER = lib.ZMQ_STREAMER
+const FORWARDER = lib.ZMQ_FORWARDER
+const QUEUE = lib.ZMQ_QUEUE
 
 
 #Send/Recv Options
-const ZMQ_DONTWAIT = 1
-const ZMQ_SNDMORE = 2
+const ZMQ_DONTWAIT = lib.ZMQ_DONTWAIT
+const ZMQ_SNDMORE = lib.ZMQ_SNDMORE

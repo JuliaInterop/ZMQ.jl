@@ -12,7 +12,7 @@ mutable struct Socket
     Create a socket in a given context.
     """
     function Socket(ctx::Context, typ::Integer)
-        p = ccall((:zmq_socket, libzmq), Ptr{Cvoid}, (Ptr{Cvoid}, Cint), ctx, typ)
+        p = lib.zmq_socket(ctx, typ)
         if p == C_NULL
             throw(StateError(jl_zmq_error_str()))
         end
@@ -58,7 +58,7 @@ Base.isopen(socket::Socket) = getfield(socket, :data) != C_NULL
 function Base.close(socket::Socket)
     if isopen(socket)
         close(getfield(socket, :pollfd))
-        rc = ccall((:zmq_close, libzmq), Cint,  (Ptr{Cvoid},), socket)
+        rc = lib.zmq_close(socket)
         setfield!(socket, :data, C_NULL)
         if rc != 0
             throw(StateError(jl_zmq_error_str()))
@@ -86,7 +86,7 @@ described
 [here](http://api.zeromq.org/4-3:zmq-bind). e.g. `tcp://127.0.0.1:42000`.
 """
 function Sockets.bind(socket::Socket, endpoint::AbstractString)
-    rc = ccall((:zmq_bind, libzmq), Cint, (Ptr{Cvoid}, Ptr{UInt8}), socket, endpoint)
+    rc = lib.zmq_bind(socket, endpoint)
     if rc != 0
         throw(StateError(jl_zmq_error_str()))
     end
@@ -98,7 +98,7 @@ end
 Connect the socket to an endpoint.
 """
 function Sockets.connect(socket::Socket, endpoint::AbstractString)
-    rc=ccall((:zmq_connect, libzmq), Cint, (Ptr{Cvoid}, Ptr{UInt8}), socket, endpoint)
+    rc = lib.zmq_connect(socket, endpoint)
     if rc != 0
         throw(StateError(jl_zmq_error_str()))
     end
