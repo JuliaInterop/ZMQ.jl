@@ -160,6 +160,7 @@ Base.strides(::Message) = (1,)
 function Base.convert(::Type{IOStream}, zmsg::Message)
     s = IOBuffer()
     write(s, zmsg)
+    seek(s, 0)
     return s
 end
 
