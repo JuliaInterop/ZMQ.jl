@@ -77,7 +77,29 @@ function _recv!(socket::Socket, zmsg)
         if -1 == msg_recv(socket, zmsg, ZMQ_DONTWAIT)
             zmq_errno() == EAGAIN || throw(StateError(jl_zmq_error_str()))
             while socket.events & POLLIN== 0
-                wait(socket)
+                # If there is no receive timeout, just wait on the socket
+                if socket.rcvtimeo == -1
+                    wait(socket)
+                else
+                    # Otherwise, implement a receive timeout for the wait. We
+                    # can't rely on ZMQ's native blocking behaviour because that
+                    # doesn't play nicely with Julia's tasks.
+                    timeout_secs = socket.rcvtimeo / 1000
+                    result_chnl = Channel()
+
+                    # One of these tasks will write to result_chnl first, at
+                    # which point the channel will be closed and the other task
+                    # terminated.
+                    zmq_task = @async (wait(socket); put!(result_chnl, :ok))
+                    timeout_task = @async (sleep(timeout_secs); put!(result_chnl, :timed_out))
+                    bind(result_chnl, zmq_task)
+                    bind(result_chnl, timeout_task)
+
+                    # If there was a timeout throw an error, otherwise continue looping
+                    if take!(result_chnl) == :timed_out
+                        error("ZMQ receive timed out")
+                    end
+                end
             end
         else
             notify_is_expensive = !isempty(getfield(socket,:pollfd).watcher.notify.waitq)
