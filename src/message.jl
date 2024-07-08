@@ -103,12 +103,15 @@ mutable struct Message <: AbstractArray{UInt8,1}
         Message(p, pointer(p.string)+p.offset, sizeof(p))
 
     @doc """
-        Message(a::Array)
+        Message(a::T) where T <: DenseVector
 
     Create a message with an array as a buffer (for send). Note: the same
     ownership semantics as for [`Message(m::String)`](@ref) apply.
+
+    Usually `a` will be a 1D `Array`/`Vector`, but on 1.11+ it can also be a
+    `Memory`.
     """
-    Message(a::Array) = Message(a, pointer(a), sizeof(a))
+    Message(a::T) where T <: DenseVector = Message(a, pointer(a), sizeof(a))
 
     @doc """
         Message(io::IOBuffer)

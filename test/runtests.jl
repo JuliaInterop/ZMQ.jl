@@ -132,6 +132,63 @@ end
 
 	# ZMQ.close(s1); ZMQ.close(s2) # should happen when context is closed
 	ZMQ.close(ZMQ._context) # immediately close global context rather than waiting for exit
+    @test !isopen(s1)
+    @test !isopen(s2)
+end
+
+# Test all the send constructors
+@testset "Message" begin
+    s1 = Socket(PUB)
+    s2 = Socket(SUB)
+    ZMQ.subscribe(s2, "")
+	ZMQ.bind(s1, "tcp://*:5555")
+	ZMQ.connect(s2, "tcp://localhost:5555")
+
+    # Sleep for a bit to prevent the 'slow joiner' problem
+    sleep(0.5)
+
+    # Message(::Int) - construct from buffer size
+    data = rand(UInt8, 10)
+    m1 = Message(length(data))
+    # Note that we don't use copy!() for compatibility with Julia 1.3
+    for i in eachindex(data)
+        m1[i] = data[i]
+    end
+    ZMQ.send(s1, m1)
+    @test ZMQ.recv(s2) == data
+
+    # Message(::Any, ::Ptr, ::Int) - construct from pointer to existing data
+    buffer = rand(UInt8, 10)
+    m2 = Message(buffer, pointer(buffer), length(buffer))
+    ZMQ.send(s1, m2)
+    @test ZMQ.recv(s2) == buffer
+
+    # Message(::String)
+    str_msg = "foobar"
+    m3 = Message(str_msg)
+    ZMQ.send(s1, m3)
+    @test String(ZMQ.recv(s2)) == str_msg
+
+    # Message(::SubString)
+    m4 = Message(str_msg[1:3])
+    ZMQ.send(s1, m4)
+    @test String(ZMQ.recv(s2)) == str_msg[1:3]
+
+    # Message(::DenseVector) - construct from array
+    buffer2 = rand(UInt8, 10)
+    m5 = Message(buffer2)
+    ZMQ.send(s1, m5)
+    @test ZMQ.recv(s2) == buffer2
+
+    # Message(::IOBuffer)
+    buffer3 = rand(UInt8, 10)
+    iobuf = IOBuffer(buffer3)
+    m6 = Message(iobuf)
+    ZMQ.send(s1, m6)
+    @test ZMQ.recv(s2) == buffer3
+
+    close(s1)
+    close(s2)
 end
 
 @testset "ZMQ resource management" begin
