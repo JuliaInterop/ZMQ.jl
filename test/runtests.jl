@@ -170,7 +170,7 @@ end
     @test String(ZMQ.recv(s2)) == str_msg
 
     # Message(::SubString)
-    m4 = Message(@view str_msg[1:3])
+    m4 = Message(SubString(str_msg, 1:3))
     ZMQ.send(s1, m4)
     @test String(ZMQ.recv(s2)) == str_msg[1:3]
 
