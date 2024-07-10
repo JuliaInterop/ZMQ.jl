@@ -13,6 +13,10 @@ Changelog](https://keepachangelog.com).
 - Support for creating [`Message`](@ref)'s from the new `Memory` type in Julia
   1.11 ([#244]).
 
+### Fixed
+- Fixed [`isfreed()`](@ref), which would previously return the wrong values
+  ([#245]).
+
 ## [v1.2.6] - 2024-06-13
 
 ### Added

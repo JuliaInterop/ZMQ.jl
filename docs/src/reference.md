@@ -60,6 +60,7 @@ Message(::String)
 Message(::SubString{String})
 Message(::Array)
 Message(::IOBuffer)
+isfreed(::Message)
 ```
 
 ## Context

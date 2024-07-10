@@ -129,9 +129,13 @@ mutable struct Message <: AbstractArray{UInt8,1}
     end
 end
 
-# check whether zeromq has called our free-function, i.e. whether
-# we are save to reclaim ownership of any buffer object
-isfreed(m::Message) = haskey(gc_protect, getfield(m, :handle))
+"""
+    isfreed(m::Message)
+
+Check whether zeromq has called our free-function, i.e. whether we are safe to
+reclaim ownership of any buffer object the [`Message`](@ref) was created with.
+"""
+isfreed(m::Message) = !haskey(gc_protect, getfield(m, :handle))
 
 # AbstractArray behaviors:
 Base.similar(a::Message, ::Type{T}, dims::Dims) where {T} = Array{T}(undef, dims) # ?

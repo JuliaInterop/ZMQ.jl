@@ -136,8 +136,8 @@ end
     @test !isopen(s2)
 end
 
-# Test all the send constructors
 @testset "Message" begin
+    # Test all the send constructors
     s1 = Socket(PUB)
     s2 = Socket(SUB)
     ZMQ.subscribe(s2, "")
@@ -170,7 +170,7 @@ end
     @test String(ZMQ.recv(s2)) == str_msg
 
     # Message(::SubString)
-    m4 = Message(str_msg[1:3])
+    m4 = Message(SubString(str_msg, 1:3))
     ZMQ.send(s1, m4)
     @test String(ZMQ.recv(s2)) == str_msg[1:3]
 
@@ -187,8 +187,21 @@ end
     ZMQ.send(s1, m6)
     @test ZMQ.recv(s2) == buffer3
 
+    close(iobuf)
+    @test_throws ErrorException Message(iobuf)
+
     close(s1)
     close(s2)
+
+    # Test indexing
+    m = Message(10)
+    @test_throws BoundsError m[0]
+    @test_throws BoundsError m[11]
+
+    # Smoke tests
+    @test !Bool(m.more)
+    @test_throws ErrorException m.more = true
+    @test ZMQ.isfreed(m)
 end
 
 @testset "ZMQ resource management" begin
