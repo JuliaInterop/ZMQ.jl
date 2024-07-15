@@ -6,9 +6,17 @@ using ZMQ, Test
 @testset "ZMQ contexts" begin
     ctx=Context()
     @test ctx isa Context
+    @test propertynames(ctx) isa Tuple
+
+    @test_logs (:warn, r"set(.+) is deprecated") ZMQ.set(ctx, ZMQ.IO_THREADS, 3)
+    @test (@test_logs (:warn, r"get(.+) is deprecated") get(ctx, ZMQ.IO_THREADS)) == 3
+
     @test (ctx.io_threads = 2) == 2
     @test ctx.io_threads == 2
     ZMQ.close(ctx)
+
+    @test_throws StateError ctx.io_threads = 1
+    @test_throws StateError ctx.io_threads
 
     #try to create socket with expired context
     @test_throws StateError Socket(ctx, PUB)
@@ -197,6 +205,14 @@ end
     m = Message(10)
     @test_throws BoundsError m[0]
     @test_throws BoundsError m[11]
+    @test_throws BoundsError m[0] = 1
+    @test_throws BoundsError m[11] = 1
+
+    @test propertynames(m) isa Tuple
+    @test_logs (:warn, r"set(.+) is deprecated") (@test_throws StateError ZMQ.set(m, ZMQ.MORE, 1))
+    @test (@test_logs (:warn, r"get(.+) is deprecated") get(m, ZMQ.MORE)) == 0
+    @test_throws ErrorException m.foo
+    @test_throws ErrorException m.more = 1
 
     # Smoke tests
     @test !Bool(m.more)
