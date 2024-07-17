@@ -20,6 +20,7 @@ makedocs(
             "man/examples.md",
         ],
         "Reference" => "reference.md",
+        "Bindings" => "bindings.md",
         "Changelog" => "changelog.md"
     ],
     format = Documenter.HTML(prettyurls = get(ENV, "CI", nothing) == "true")
