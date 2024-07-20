@@ -121,8 +121,7 @@ end
 
     ZMQ.send(s2, Message("another test request"))
     msg = ZMQ.recv(s1)
-    o=convert(IOStream, msg)
-    seek(o, 0)
+    o = IOBuffer(msg)
     @test String(take!(o)) == "another test request"
     ZMQ.send(s1) do io
         print(io, "buffer ")
@@ -218,6 +217,7 @@ end
     @test !Bool(m.more)
     @test_throws ErrorException m.more = true
     @test ZMQ.isfreed(m)
+    @test_logs (:warn, r"convert(.+) is deprecated") convert(IOStream, m)
 end
 
 @testset "ZMQ resource management" begin

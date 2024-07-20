@@ -14,6 +14,10 @@ Changelog](https://keepachangelog.com).
   1.11 ([#244]).
 - Full [Bindings](@ref) to libzmq ([#232]).
 
+### Deprecated
+- The `Base.convert(IOStream, ::Message)` method has been deprecated due to
+  buggy behaviour, use `IOBuffer(msg)` instead ([#247]).
+
 ### Fixed
 - Fixed [`isfreed()`](@ref), which would previously return the wrong values
   ([#245]).
