@@ -28,6 +28,7 @@ include("sockopts.jl")
 include("message.jl")
 include("msg_bindings.jl")
 include("comm.jl")
+include("draft.jl")
 
 """
     lib_version()
