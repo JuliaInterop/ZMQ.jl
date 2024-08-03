@@ -7,7 +7,7 @@ CurrentModule = ZMQ
 This documents notable changes in ZMQ.jl. The format is based on [Keep a
 Changelog](https://keepachangelog.com).
 
-## Unreleased
+## [v1.3.0] - 2024-08-03
 
 ### Added
 - Support for creating [`Message`](@ref)'s from the new `Memory` type in Julia
