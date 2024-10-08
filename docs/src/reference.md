@@ -58,7 +58,7 @@ Message(::Integer)
 Message(::Any)
 Message(::String)
 Message(::SubString{String})
-Message(::Array)
+Message(::DenseVector)
 Message(::IOBuffer)
 isfreed(::Message)
 ```
