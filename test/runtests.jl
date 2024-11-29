@@ -137,6 +137,22 @@ end
         finalize(m)
     end
 
+    # Test multipart messages
+    data = ["foo", "bar", "baz"]
+    ZMQ.send_multipart(s2, data)
+
+    # Test receiving Message's
+    msgs = ZMQ.recv_multipart(s1)
+    @test msgs isa Vector{Message}
+    @test String.(msgs) == data
+
+    # Test receiving a specific type
+    data = Int[1, 2, 3]
+    ZMQ.send_multipart(s1, data)
+    msgs = ZMQ.recv_multipart(s2, Int)
+    @test msgs isa Vector{Int}
+    @test msgs == data
+
     # ZMQ.close(s1); ZMQ.close(s2) # should happen when context is closed
     ZMQ.close(ZMQ._context) # immediately close global context rather than waiting for exit
     @test !isopen(s1)

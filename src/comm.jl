@@ -60,6 +60,19 @@ function Sockets.send(f::Function, socket::Socket; more::Bool=false)
     send(socket, take!(io); more=more)
 end
 
+"""
+    send_multipart(socket::Socket, parts)
+
+Send a multipart message composed of the elements in `parts`. `parts` may be any
+object that supports `getindex()`, `eachindex()`, and `lastindex()`.
+"""
+function send_multipart(socket::Socket, parts)
+    for i in eachindex(parts)
+        is_last = i == lastindex(parts)
+        send(socket, parts[i]; more=!is_last)
+    end
+end
+
 ############################################################################
 
 function _recv!(socket::Socket, zmsg)
@@ -107,3 +120,29 @@ function Sockets.recv(socket::Socket, ::Type{T}) where {T}
         close(zmsg)
     end
 end
+
+# Specialization so that recv(::Socket, ::Message) works
+Sockets.recv(socket::Socket, ::Type{Message}) = recv(socket)
+
+"""
+    recv_multipart(socket::Socket, ::Type{T}) -> Vector{T}
+
+Receive a multipart message of a specific type `T`. This behaves in the same way
+as [`recv(::Socket, ::Type)`](@ref).
+"""
+function recv_multipart(socket::Socket, ::Type{T}) where {T}
+    parts = T[recv(socket, T)]
+    while socket.rcvmore
+        push!(parts, recv(socket, T))
+    end
+
+    return parts
+end
+
+"""
+    recv_multipart(socket::Socket) -> Vector{Message}
+
+Receive a multipart message as a sequence of zero-copy [`Message`](@ref)'s. See
+[`recv(::Socket)`](@ref).
+"""
+recv_multipart(socket::Socket) = recv_multipart(socket, Message)

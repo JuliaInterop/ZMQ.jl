@@ -27,7 +27,9 @@ close
 bind
 connect
 recv
+recv_multipart
 send
+send_multipart
 ```
 
 ZMQ socket types (note: some of these are aliases; e.g. `XREQ = DEALER`):
