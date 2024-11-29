@@ -223,29 +223,29 @@ end
 @testset "ZMQ resource management" begin
     local leaked_req_socket, leaked_rep_socket
     ZMQ.Socket(ZMQ.REQ) do req_socket
-    leaked_req_socket = req_socket
+        leaked_req_socket = req_socket
 
-    ZMQ.Socket(ZMQ.REP) do rep_socket
-        leaked_rep_socket = rep_socket
+        ZMQ.Socket(ZMQ.REP) do rep_socket
+            leaked_rep_socket = rep_socket
 
-        ZMQ.bind(rep_socket, "inproc://tester")
-        ZMQ.connect(req_socket, "inproc://tester")
+            ZMQ.bind(rep_socket, "inproc://tester")
+            ZMQ.connect(req_socket, "inproc://tester")
 
-        ZMQ.send(req_socket, "Mr. Watson, come here, I want to see you.")
-        @test unsafe_string(ZMQ.recv(rep_socket)) == "Mr. Watson, come here, I want to see you."
-        ZMQ.send(rep_socket, "Coming, Mr. Bell.")
-        @test unsafe_string(ZMQ.recv(req_socket)) == "Coming, Mr. Bell."
-    end
+            ZMQ.send(req_socket, "Mr. Watson, come here, I want to see you.")
+            @test unsafe_string(ZMQ.recv(rep_socket)) == "Mr. Watson, come here, I want to see you."
+            ZMQ.send(rep_socket, "Coming, Mr. Bell.")
+            @test unsafe_string(ZMQ.recv(req_socket)) == "Coming, Mr. Bell."
+        end
 
-    @test !ZMQ.isopen(leaked_rep_socket)
+        @test !ZMQ.isopen(leaked_rep_socket)
     end
     @test !ZMQ.isopen(leaked_req_socket)
 
     local leaked_ctx
     ZMQ.Context() do ctx
-    leaked_ctx = ctx
+        leaked_ctx = ctx
 
-    @test isopen(ctx)
+        @test isopen(ctx)
     end
     @test !isopen(leaked_ctx)
 end
