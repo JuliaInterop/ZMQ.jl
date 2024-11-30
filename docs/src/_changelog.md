@@ -7,6 +7,12 @@ CurrentModule = ZMQ
 This documents notable changes in ZMQ.jl. The format is based on [Keep a
 Changelog](https://keepachangelog.com).
 
+## [v1.4.0] - 2024-11-30
+
+### Added
+- Implemented [`send_multipart()`](@ref) and [`recv_multipart()`](@ref) for
+  working with multipart messages ([#253]).
+
 ## [v1.3.0] - 2024-08-03
 
 ### Added
