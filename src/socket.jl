@@ -45,6 +45,30 @@ function Socket(f::Function, args...)
     end
 end
 
+const _socket_type_names = Dict(
+    lib.ZMQ_PAIR => "PAIR",
+    lib.ZMQ_PUB => "PUB",
+    lib.ZMQ_SUB => "SUB",
+    lib.ZMQ_REQ => "REQ",
+    lib.ZMQ_REP => "REP",
+    lib.ZMQ_DEALER => "DEALER",
+    lib.ZMQ_ROUTER => "ROUTER",
+    lib.ZMQ_PULL => "PULL",
+    lib.ZMQ_PUSH => "PUSH",
+    lib.ZMQ_XPUB => "XPUB",
+    lib.ZMQ_XSUB => "XSUB"
+)
+
+function Base.show(io::IO, socket::Socket)
+    if isopen(socket)
+        type_name = _socket_type_names[socket.type]
+        last_endpoint = socket.last_endpoint == "\0" ? "" : ", $(socket.last_endpoint)"
+        print(io, Socket, "($(type_name)$(last_endpoint))")
+    else
+        print(io, Socket, "([closed])")
+    end
+end
+
 Base.unsafe_convert(::Type{Ptr{Cvoid}}, s::Socket) = getfield(s, :data)
 
 """

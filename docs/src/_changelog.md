@@ -7,6 +7,12 @@ CurrentModule = ZMQ
 This documents notable changes in ZMQ.jl. The format is based on [Keep a
 Changelog](https://keepachangelog.com).
 
+## Unreleased
+
+### Changed
+- Implemented `Base.show()` methods for [`Socket`](@ref) and [`Context`](@ref)
+  for pretty-printing ([#255]).
+
 ## [v1.4.0] - 2024-11-30
 
 ### Added
