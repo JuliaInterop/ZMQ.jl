@@ -62,10 +62,10 @@ const _socket_type_names = Dict(
 function Base.show(io::IO, socket::Socket)
     if isopen(socket)
         type_name = _socket_type_names[socket.type]
-        last_endpoint = socket.last_endpoint == "\0" ? "" : ", $(socket.last_endpoint)"
+        last_endpoint = socket.last_endpoint == "\0" ? "" : ", $(socket.last_endpoint[1:end-1])"
         print(io, Socket, "($(type_name)$(last_endpoint))")
     else
-        print(io, Socket, "([closed])")
+        print(io, Socket, "() (closed)")
     end
 end
 

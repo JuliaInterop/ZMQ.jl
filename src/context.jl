@@ -42,7 +42,7 @@ function Base.show(io::IO, ctx::Context)
     if isopen(ctx)
         print(io, Context, "($(getfield(ctx, :sockets)))")
     else
-        print(io, Context, "([closed])")
+        print(io, Context, "() (closed)")
     end
 end
 

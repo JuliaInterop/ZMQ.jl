@@ -23,9 +23,9 @@ using ZMQ, Test
 
     # Smoke tests for Base.show()
     ctx = Context()
-    show(IOBuffer(), ctx)
+    @test repr(ctx) == "Context(WeakRef[])"
     close(ctx)
-    show(IOBuffer(), ctx)
+    @test repr(ctx) == "Context() (closed)"
 end
 
 # This test is in its own function to keep it simple and try to trick Julia into
@@ -166,11 +166,11 @@ end
 
     # Smoke tests for Base.show() in different Socket situations
     s1 = Socket(REP)
-    show(IOBuffer(), s1)
-    ZMQ.bind(s1, "tcp://127.0.0.1:*")
-    show(IOBuffer(), s1)
+    @test repr(s1) == "Socket(REP)"
+    ZMQ.bind(s1, "tcp://127.0.0.1:5555")
+    @test repr(s1) == "Socket(REP, tcp://127.0.0.1:5555)"
     close(s1)
-    show(IOBuffer(), s1)
+    @test repr(s1) == "Socket() (closed)"
 end
 
 @testset "Message" begin
