@@ -20,6 +20,12 @@ using ZMQ, Test
 
     #try to create socket with expired context
     @test_throws StateError Socket(ctx, PUB)
+
+    # Smoke tests for Base.show()
+    ctx = Context()
+    @test repr(ctx) == "Context(WeakRef[])"
+    close(ctx)
+    @test repr(ctx) == "Context() (closed)"
 end
 
 # This test is in its own function to keep it simple and try to trick Julia into
@@ -157,6 +163,14 @@ end
     ZMQ.close(ZMQ._context) # immediately close global context rather than waiting for exit
     @test !isopen(s1)
     @test !isopen(s2)
+
+    # Smoke tests for Base.show() in different Socket situations
+    s1 = Socket(REP)
+    @test repr(s1) == "Socket(REP)"
+    ZMQ.bind(s1, "tcp://127.0.0.1:5555")
+    @test repr(s1) == "Socket(REP, tcp://127.0.0.1:5555)"
+    close(s1)
+    @test repr(s1) == "Socket() (closed)"
 end
 
 @testset "Message" begin

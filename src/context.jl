@@ -38,6 +38,14 @@ function Context(f::Function, args...)
     end
 end
 
+function Base.show(io::IO, ctx::Context)
+    if isopen(ctx)
+        print(io, Context, "($(getfield(ctx, :sockets)))")
+    else
+        print(io, Context, "() (closed)")
+    end
+end
+
 Base.unsafe_convert(::Type{Ptr{Cvoid}}, c::Context) = getfield(c, :data)
 
 # define a global context that is initialized lazily
