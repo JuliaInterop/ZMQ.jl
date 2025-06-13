@@ -7,11 +7,16 @@ CurrentModule = ZMQ
 This documents notable changes in ZMQ.jl. The format is based on [Keep a
 Changelog](https://keepachangelog.com).
 
-## Unreleased
+## [v1.4.1] - 2025-06-13
 
 ### Changed
 - Implemented `Base.show()` methods for [`Socket`](@ref) and [`Context`](@ref)
   for pretty-printing ([#255]).
+
+### Fixed
+- The precompilation workload now hardcodes the use of IP address `127.0.0.1`
+  instead of resolving `localhost`, which fixes precompilation on machines that
+  may have `localhost` resolve to a different node ([#257]).
 
 ## [v1.4.0] - 2024-11-30
 
