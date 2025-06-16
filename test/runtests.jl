@@ -1,3 +1,4 @@
+import Base.Threads: @spawn
 import Aqua
 using ZMQ, Test
 
@@ -59,7 +60,7 @@ end
     @test s1.linger === 1
     @test s1.rcvmore === false
 
-    s2=Socket(REQ)
+    s2 = Socket(REQ)
     @test s1.type == REP
     @test s2.type == REQ
 
@@ -284,12 +285,21 @@ end
     ctx = Context()
     req1 = Socket(REQ)
     rep1 = Socket(REP)
+    req2 = Socket(REQ)
+    rep2 = Socket(REP)
 
     bind(req1, "inproc://s1")
     connect(rep1, "inproc://s1")
+    bind(req2, "inproc://s2")
+    connect(rep2, "inproc://s2")
 
     poller = PollItems([(req1, ZMQ.POLLIN), (rep1, ZMQ.POLLIN)])
-    send(req1, "Hello")
+    t = @spawn begin
+        recv(rep2)
+        sleep(1)
+        send(req1, "Hello")
+    end
+    send(req2, "")
     while true
         i = poll(poller)
         arr = ZMQ.revents(poller)
@@ -306,6 +316,8 @@ end
 
     close(req1)
     close(rep1)
+    close(req2)
+    close(rep2)
     close(ctx)
 end
 

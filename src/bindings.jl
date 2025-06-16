@@ -347,7 +347,7 @@ end
 [Upstream documentation](https://libzmq.readthedocs.io/en/latest/zmq_poll.html).
 """
 function zmq_poll(items_, nitems_, timeout_)
-    ccall((:zmq_poll, libzmq), Cint, (Ptr{zmq_pollitem_t}, Cint, Clong), items_, nitems_, timeout_)
+    @threadcall((:zmq_poll, libzmq), Cint, (Ptr{zmq_pollitem_t}, Cint, Clong), items_, nitems_, timeout_)
 end
 
 """
