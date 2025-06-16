@@ -40,6 +40,9 @@ struct PollItems
     end
 end
 
+struct ZMQResetPoll <: Exception end
+struct ZMQStopPoll <: Exception end
+
 struct PollItems2
     sockets::Vector{Socket}
     events::Vector{Int16}
@@ -61,55 +64,53 @@ struct PollItems2
         trigger2 = Threads.Event()
         revents = zeros(Int16, length(socks))
         tasks = Task[]
+        ack = Int16(0)
         for i = eachindex(events)
-            push!(tasks, @spawn _polltask(socks[i], Int16(events[i]), revents, i, trigger, trigger2, channel))
+            push!(tasks, @spawn _polltask(trigger, trigger2, channel, _poll_socket(socks[i], Int16(events[i]), revents, i), ack))
         end
-        sleeptask = @spawn begin
-            while true
-                try
-                    wait(trigger)
-                    t = take!(sleepchannel)
-                    sleep(t)
-                    put!(channel, 0)
-                catch e
-                    if e isa ZMQResetPoll
-                        wait(trigger2)
-                        put!(channel, 0)
-                        continue
-                    else
-                        rethrow(e)
-                    end
-                end
-            end
-        end
+        sleeptask = @spawn _polltask(trigger, trigger2, channel, _poll_timeout(sleepchannel, ack), ack)
         new(socks, events, deepcopy(revents), revents, tasks, sleeptask, sleepchannel, channel, trigger, trigger2)
     end
 end
 
-function _polltask(socket::Socket, event::Int16, revents::Vector{Int16}, index::Int, trigger::Threads.Event, trigger2::Threads.Event, channel::Channel)
+function _poll_socket(socket::Socket, event::Int16, revents::Vector{Int16}, index::Int)
+    () -> begin
+	    while socket.events & event == 0
+            wait(socket)
+        end
+        revents[index] = Int16(socket.events & event)
+        return count_ones(revents[index])
+    end
+end
+
+function _poll_timeout(duration::Channel, ack)
+    () -> begin
+        t = take!(duration)
+        sleep(t)
+        ack
+    end
+end
+
+function _polltask(set_trigger::Threads.Event, reset_trigger::Threads.Event, c::Channel{T}, f, ack::T) where {T}
     while true
-        try 
-            wait(trigger)
-            while socket.events & event == 0
-                wait(socket)
-            end
-            revents[index] = Int16(socket.events & event)
-            put!(channel, count_ones(revents[index]))
-            wait(trigger2)
+        try
+	        wait(set_trigger)
+            result = f()
+            put!(c, result)
+            wait(reset_trigger)
         catch e
             if e isa ZMQResetPoll
-                wait(trigger2)
-                put!(channel, 0)
+                wait(reset_trigger)
+                put!(c, ack)
                 continue
+            elseif e isa ZMQStopPoll
+                break
             else
                 rethrow(e)
             end
         end
     end
 end
-
-struct ZMQResetPoll <: Exception end
-struct ZMQStopPoll <: Exception end
 
 function poll(p::PollItems2, timeout=-1)
     # reset indicators
