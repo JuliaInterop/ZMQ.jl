@@ -1,3 +1,4 @@
+import Base.Threads: @spawn
 export PollItems, poll
 
 """
@@ -37,6 +38,110 @@ struct PollItems
             ), socks
         )
     end
+end
+
+struct PollItems2
+    sockets::Vector{Socket}
+    events::Vector{Int16}
+    revents::Vector{Int16}
+    _revents::Vector{Int16} # copy of revents to avoid race conditions with user code
+    _tasks::Vector{Task}
+    _sleeptask::Task
+    _sleepchannel::Channel
+    _channel::Channel
+    _trigger::Threads.Event
+    _trigger_reset::Threads.Event
+    function PollItems2(
+        socks::Vector{Socket},
+        events::Vector{<:Integer},
+        )
+        channel = Channel{Int16}(length(socks)+1)
+        sleepchannel = Channel{Float64}(1)
+        trigger = Threads.Event()
+        trigger2 = Threads.Event()
+        revents = zeros(Int16, length(socks))
+        tasks = Task[]
+        for i = eachindex(events)
+            push!(tasks, @spawn _polltask(socks[i], Int16(events[i]), revents, i, trigger, trigger2, channel))
+        end
+        sleeptask = @spawn begin
+            while true
+                try
+                    wait(trigger)
+                    t = take!(sleepchannel)
+                    sleep(t)
+                    put!(channel, 0)
+                catch e
+                    if e isa ZMQResetPoll
+                        wait(trigger2)
+                        put!(channel, 0)
+                        continue
+                    else
+                        rethrow(e)
+                    end
+                end
+            end
+        end
+        new(socks, events, deepcopy(revents), revents, tasks, sleeptask, sleepchannel, channel, trigger, trigger2)
+    end
+end
+
+function _polltask(socket::Socket, event::Int16, revents::Vector{Int16}, index::Int, trigger::Threads.Event, trigger2::Threads.Event, channel::Channel)
+    while true
+        try 
+            wait(trigger)
+            while socket.events & event == 0
+                wait(socket)
+            end
+            revents[index] = Int16(socket.events & event)
+            put!(channel, count_ones(revents[index]))
+            wait(trigger2)
+        catch e
+            if e isa ZMQResetPoll
+                wait(trigger2)
+                put!(channel, 0)
+                continue
+            else
+                rethrow(e)
+            end
+        end
+    end
+end
+
+struct ZMQResetPoll <: Exception end
+struct ZMQStopPoll <: Exception end
+
+function poll(p::PollItems2, timeout=-1)
+    # reset indicators
+    fill!(p.revents, 0)
+    fill!(p._revents, 0)
+    # set timeout
+    if timeout > 0
+        put!(p._sleepchannel, timeout * 1e-3)
+    end
+    # start all tasks
+    notify(p._trigger)
+    # wait until one finishes
+    fetch(p._channel)
+    reset(p._trigger)
+    # reset all the rest
+    for task in p._tasks
+        schedule(task, ZMQResetPoll(), error=true)
+    end
+    schedule(p._sleeptask, ZMQResetPoll(), error=true)
+    # get amount of events
+    total = 0
+    while !isempty(p._channel)
+        total += take!(p._channel)
+    end
+    # copy events to read array
+    copy!(p.revents, p._revents)
+    notify(p._trigger_reset)
+    for _ = 1:(length(p.revents) + 1)
+        take!(p._channel)
+    end
+    reset(p._trigger_reset)
+    return total
 end
 
 function poll(pitems::Vector{lib.zmq_pollitem_t}, sock::AbstractVector{Socket}, timeout = -1)

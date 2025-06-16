@@ -5,7 +5,7 @@ using ZMQ, Test
 @info("Testing with ZMQ version $(ZMQ.version)")
 
 @testset "ZMQ contexts" begin
-    ctx=Context()
+    ctx = Context()
     @test ctx isa Context
     @test propertynames(ctx) isa Tuple
 
@@ -40,17 +40,17 @@ function context_gc_test()
 
     # But it shouldn't be garbage collected since the socket should have a
     # reference to it, so the socket should still be open.
-    @test isopen(s)
+    return @test isopen(s)
 end
 
 @testset "ZMQ sockets" begin
     context_gc_test()
 
-    s=Socket(PUB)
+    s = Socket(PUB)
     @test s isa Socket
     ZMQ.close(s)
 
-    s1=Socket(REP)
+    s1 = Socket(REP)
     s1.sndhwm = 1000
     s1.linger = 1
     s1.routing_id = "abcd"
@@ -138,9 +138,9 @@ end
 
     @testset "Message AbstractVector interface" begin
         m = Message("1")
-        @test m[1]==0x31
-        @test (m[1]=0x32) === 0x32
-        @test unsafe_string(m)=="2"
+        @test m[1] == 0x31
+        @test (m[1] = 0x32) === 0x32
+        @test unsafe_string(m) == "2"
         finalize(m)
     end
 
@@ -293,7 +293,8 @@ end
     bind(req2, "inproc://s2")
     connect(rep2, "inproc://s2")
 
-    poller = PollItems([(req1, ZMQ.POLLIN), (rep1, ZMQ.POLLIN)])
+    poller = ZMQ.PollItems2([req1, rep1], [ZMQ.POLLIN, ZMQ.POLLIN])
+    arr = poller.revents
     t = @spawn begin
         recv(rep2)
         sleep(1)
@@ -301,13 +302,13 @@ end
     end
     send(req2, "")
     while true
-        i = poll(poller)
-        arr = ZMQ.revents(poller)
+        i = poll(poller, 100)
         if arr[1] & ZMQ.POLLIN > 0
             s = recv(req1, String)
             @test s == "World"
             break
-        elseif arr[2] & ZMQ.POLLIN > 0
+        end
+        if arr[2] & ZMQ.POLLIN > 0
             s = recv(rep1, String)
             @test s == "Hello"
             send(rep1, "World")
