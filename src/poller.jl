@@ -1,7 +1,8 @@
 export PollItems, poll
 
 """
-struct PollItems
+    PollItems(socks::AbstractVector{Socket}, events::AbstractVector{T}) where {T<:Integer}
+    PollItems(sock_event_pairs::AbstractVector{Tuple{Socket, T}) where {T<:Integer}
 
 High-level `PollItems` object for polling multiple ZMQ sockets simultaneously.
 It is recommended poll via this object since the low-level API is unsafe.
@@ -12,10 +13,6 @@ struct PollItems
     inner::Vector{lib.zmq_pollitem_t}
     sock::Vector{Socket}
 
-    @doc """
-    PollItems(socks::AbstractVector{Socket}, events::AbstractVector{T}) where {T<:Integer}
-    Create a PollItems object from provided sockets and events.
-    """
     function PollItems(
             socks::AbstractVector{Socket},
             events::AbstractVector{T}
@@ -23,10 +20,6 @@ struct PollItems
         return PollItems(convert(Vector{Socket}, socks), convert(Vector{T}, events))
     end
 
-    @doc """
-    PollItems(sock_event_pairs::AbstractVector{Tuple{Socket, T}) where {T<:Integer}
-    Create a PollItems object from provided sockets and events.
-    """
     function PollItems(v::AbstractVector{Tuple{Socket, T}}) where {T <: Integer}
         return PollItems(first.(v), last.(v))
     end
@@ -58,7 +51,7 @@ end
 
 """
     poll(p::PollItems, timeout::Integer = -1)
-Poll multiple sockets and return the amount of events. The timeout is specified in miliseconds. A negative timeout blocks indefinitely.
+Poll multiple sockets and return the amount of events. The timeout is specified in milliseconds. A negative timeout blocks indefinitely.
 """
 function poll(p::PollItems, timeout = -1)
     return poll(p.inner, p.sock, timeout)
