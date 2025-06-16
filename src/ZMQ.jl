@@ -28,6 +28,7 @@ include("sockopts.jl")
 include("message.jl")
 include("msg_bindings.jl")
 include("comm.jl")
+include("poller.jl")
 
 """
     lib_version()

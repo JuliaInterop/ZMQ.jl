@@ -294,16 +294,19 @@ end
         i = poll(poller)
         arr = ZMQ.revents(poller)
         if arr[1] & ZMQ.POLLIN > 0
-            println(recv(req1, String))
+            s = recv(req1, String)
+            @test s == "World"
             break
         elseif arr[2] & ZMQ.POLLIN > 0
-            println(recv(rep1, String))
+            s = recv(rep1, String)
+            @test s == "Hello"
             send(rep1, "World")
         end
     end
 
     close(req1)
     close(rep1)
+    close(ctx)
 end
 
 @testset "Utilities" begin
