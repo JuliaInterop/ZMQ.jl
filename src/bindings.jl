@@ -334,7 +334,7 @@ end
 
 const zmq_fd_t = Cint
 
-mutable struct zmq_pollitem_t
+struct zmq_pollitem_t
     socket::Ptr{Cvoid}
     fd::zmq_fd_t
     events::Cshort

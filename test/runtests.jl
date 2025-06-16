@@ -280,6 +280,32 @@ end
     @test !isopen(leaked_ctx)
 end
 
+@testset "ZMQPoll" begin
+    ctx = Context()
+    req1 = Socket(REQ)
+    rep1 = Socket(REP)
+
+    bind(req1, "inproc://s1")
+    connect(rep1, "inproc://s1")
+
+    poller = PollItems([(req1, ZMQ.POLLIN), (rep1, ZMQ.POLLIN)])
+    send(req1, "Hello")
+    while true
+        i = poll(poller)
+        arr = ZMQ.revents(poller)
+        if arr[1] & ZMQ.POLLIN > 0
+            println(recv(req1, String))
+            break
+        elseif arr[2] & ZMQ.POLLIN > 0
+            println(recv(rep1, String))
+            send(rep1, "World")
+        end
+    end
+
+    close(req1)
+    close(rep1)
+end
+
 @testset "Utilities" begin
     @test ZMQ.lib_version() isa VersionNumber
 end
