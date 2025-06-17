@@ -282,43 +282,148 @@ end
 end
 
 @testset "ZMQPoll" begin
+
+    # import TestEnv; TestEnv.activate()
+    # import Base.Threads: @spawn
+    # using ZMQ, Test
+
     ctx = Context()
     req1 = Socket(REQ)
     rep1 = Socket(REP)
+    rep_trigger = Socket(REP)
     req2 = Socket(REQ)
     rep2 = Socket(REP)
+    poller = ZMQ.PollItems2([req1, rep1, rep2], [ZMQ.POLLIN, ZMQ.POLLIN, ZMQ.POLLIN])
 
-    bind(req1, "inproc://s1")
-    connect(rep1, "inproc://s1")
-    bind(req2, "inproc://s2")
-    connect(rep2, "inproc://s2")
+    timeout_ms = 1000
 
-    poller = ZMQ.PollItems2([req1, rep1], [ZMQ.POLLIN, ZMQ.POLLIN])
-    arr = poller.revents
-    t = @spawn begin
-        recv(rep2)
-        sleep(1)
-        send(req1, "Hello")
+    addr = "inproc://s1"
+    addr2 = "inproc://s2"
+    trigger_addr = "inproc://s3"
+    hi = "Hello"
+    bye = "World"
+
+    connect(req1, addr)
+    bind(rep1, addr)
+    bind(rep_trigger, trigger_addr)
+    bind(rep2, addr2)
+    connect(req2, addr2)
+
+    function async_send(addr, trigger_addr, waiting_time)
+        hi = "Hello"
+        bye = "World"
+        req_alt = Socket(REQ)
+        connect(req_alt, addr)
+        req_trigger = Socket(REQ)
+        connect(req_trigger, trigger_addr)
+        send(req_trigger, hi)
+        sleep(waiting_time)
+        send(req_alt, hi)
+        close(req_trigger)
+        close(req_alt)
     end
-    send(req2, "")
-    while true
-        i = poll(poller, 100)
-        if arr[1] & ZMQ.POLLIN > 0
-            s = recv(req1, String)
-            @test s == "World"
-            break
-        end
-        if arr[2] & ZMQ.POLLIN > 0
-            s = recv(rep1, String)
-            @test s == "Hello"
-            send(rep1, "World")
-        end
+
+    # Polling multiple items
+    # case 1: socket received message before poll
+    send(req1, hi)
+    @test poll(poller, timeout_ms) == 1
+    @test poller.revents[2] == ZMQ.POLLIN
+    @test recv(rep1, String) == hi
+    send(rep1, bye)
+    @test poll(poller, timeout_ms) == 1
+    recv(req1)
+
+    # case 2: socket received message during poll
+    t = @spawn async_send(addr, trigger_addr, timeout_ms * 1.0e-4)
+    recv(rep_trigger)
+    @test poll(poller, timeout_ms) == 1
+    @test poller.revents[2] == ZMQ.POLLIN
+    @test poller.revents[1] == 0
+    recv(rep1)
+    send(rep1, bye)
+    @test poll(poller, timeout_ms) == 0
+    send(rep_trigger, bye)
+    wait(t)
+
+    # case 3: poll times out
+    t = @spawn async_send(addr, trigger_addr, timeout_ms * 2.0e-3)
+    recv(rep_trigger)
+    @test poll(poller, timeout_ms) == 0
+    send(rep_trigger, bye)
+    wait(t)
+    recv(rep1)
+    send(rep1, bye)
+
+    # case 4: blocking poll receive before
+    send(req1, hi)
+    @test poll(poller) == 1
+    @test poller.revents[2] == ZMQ.POLLIN
+    @test recv(rep1, String) == hi
+    send(rep1, bye)
+    @test poll(poller) == 1
+    recv(req1)
+
+    # case 5: blocking poll receive during
+    t = @spawn async_send(addr, trigger_addr, timeout_ms * 1.0e-4)
+    recv(rep_trigger)
+    @test poll(poller) == 1
+    @test poller.revents[2] == ZMQ.POLLIN
+    @test poller.revents[1] == 0
+    recv(rep1)
+    send(rep1, bye)
+    @test poll(poller, 100) == 0
+    send(rep_trigger, bye)
+    wait(t)
+
+    # tests mostly work up until here
+
+    # case 6: multiple sockets receive before call with timeout
+    send(req1, hi)
+    send(req2, hi)
+    @test poll(poller, timeout_ms) == 2
+    @test poller.revents[2] == ZMQ.POLLIN
+    @test poller.revents[3] == ZMQ.POLLIN
+    @test recv(rep1, String) == hi
+    @test recv(rep2, String) == hi
+    send(rep1, bye)
+    send(rep2, bye)
+    @test poll(poller, timeout_ms) == 1 # req2 is not in poller
+    recv(req1)
+    recv(req2)
+    return
+
+    # case 7: multiple sockets receive during call with no timeout
+    println("Reached case 7")
+    t1 = @spawn async_send(addr, trigger_addr, timeout_ms * 1.0e-4)
+    @show t1
+    recv(rep_trigger)
+    send(rep_trigger, bye)
+    t2 = @spawn async_send(addr2, trigger_addr, timeout_ms * 1.0e-4)
+    @show t1
+    recv(rep_trigger)
+    num_events = poll(poller)
+    @test 0 <= num_events <= 2 # could return 1 or 2 events
+    @test poller.revents[2] == ZMQ.POLLIN || poller.revents[3] == ZMQ.POLLIN
+    if num_events == 1
+        rest = poll(poller)
+    else
+        rest = 0
     end
+    @test num_events + rest == 2
+    @test recv(rep1, String) == hi
+    @test recv(rep2, String) == hi
+    send(rep1, bye)
+    send(rep2, bye)
+    wait(t1)
+    wait(t2)
+
+    return
 
     close(req1)
     close(rep1)
     close(req2)
     close(rep2)
+    close(rep_trigger)
     close(ctx)
 end
 

@@ -49,99 +49,88 @@ struct PollItems2
     revents::Vector{Int16}
     _revents::Vector{Int16} # copy of revents to avoid race conditions with user code
     _tasks::Vector{Task}
-    _sleeptask::Task
-    _sleepchannel::Channel
-    _channel::Channel
+    _channel::Channel{Int16}
     _trigger::Threads.Event
     _trigger_reset::Threads.Event
+    _revents_lock::Vector{ReentrantLock}
     function PollItems2(
-        socks::Vector{Socket},
-        events::Vector{<:Integer},
+            socks::Vector{Socket},
+            events::Vector{<:Integer},
         )
-        channel = Channel{Int16}(length(socks)+1)
-        sleepchannel = Channel{Float64}(1)
+        channel = Channel{Int16}(length(socks) + 1)
         trigger = Threads.Event()
         trigger2 = Threads.Event()
         revents = zeros(Int16, length(socks))
-        tasks = Task[]
-        ack = Int16(0)
-        for i = eachindex(events)
-            push!(tasks, @spawn _polltask(trigger, trigger2, channel, _poll_socket(socks[i], Int16(events[i]), revents, i), ack))
-        end
-        sleeptask = @spawn _polltask(trigger, trigger2, channel, _poll_timeout(sleepchannel, ack), ack)
-        new(socks, events, deepcopy(revents), revents, tasks, sleeptask, sleepchannel, channel, trigger, trigger2)
+        revents_lock = [ReentrantLock() for _ in eachindex(socks)]
+        tasks = map(i -> @spawn(_polltask(trigger, trigger2, channel, socks[i], Int16(events[i]), revents, revents_lock[i], i)), eachindex(events))
+        notify(trigger2)
+        return new(socks, events, deepcopy(revents), revents, tasks, channel, trigger, trigger2, revents_lock)
     end
 end
 
-function _poll_socket(socket::Socket, event::Int16, revents::Vector{Int16}, index::Int)
-    () -> begin
-	    while socket.events & event == 0
-            wait(socket)
-        end
-        revents[index] = Int16(socket.events & event)
-        return count_ones(revents[index])
-    end
-end
-
-function _poll_timeout(duration::Channel, ack)
-    () -> begin
-        t = take!(duration)
-        sleep(t)
-        ack
-    end
-end
-
-function _polltask(set_trigger::Threads.Event, reset_trigger::Threads.Event, c::Channel{T}, f, ack::T) where {T}
+function _polltask(set_trigger::Threads.Event, reset_trigger::Threads.Event, c::Channel{T}, socket::Socket, event::Int16, revents::Vector{Int16}, revents_lock::ReentrantLock, index::Int) where {T}
     while true
         try
-	        wait(set_trigger)
-            result = f()
+            # at any given poll there are three possible entrypoints:
+            # either the task enters at #1: previous call it finished
+            # in time or it's the first poll. If the previous call
+            # didn't finish, it's still waiting on the socket #2. If
+            # it did finish but not within the timeout, then it's at
+            # #3.
+            #1
+            wait(set_trigger)
+            while socket.events & event == 0
+                #2
+                wait(socket)
+            end
+            #3
+            wait(set_trigger)
+            lock(revents_lock)
+            revents[index] = Int16(socket.events & event)
+            result = count_ones(revents[index])
+            unlock(revents_lock)
             put!(c, result)
+            #4
             wait(reset_trigger)
+            lock(revents_lock)
+            revents[index] = Int16(0)
+            unlock(revents_lock)
         catch e
-            if e isa ZMQResetPoll
-                wait(reset_trigger)
-                put!(c, ack)
-                continue
-            elseif e isa ZMQStopPoll
+            if e isa ZMQStopPoll
                 break
             else
                 rethrow(e)
             end
         end
     end
+    return
 end
 
-function poll(p::PollItems2, timeout=-1)
+function poll(p::PollItems2, timeout = -1)
+    # cancel reset task
+    reset(p._trigger_reset)
     # reset indicators
     fill!(p.revents, 0)
-    fill!(p._revents, 0)
-    # set timeout
-    if timeout > 0
-        put!(p._sleepchannel, timeout * 1e-3)
-    end
     # start all tasks
     notify(p._trigger)
-    # wait until one finishes
-    fetch(p._channel)
+    if timeout > 0 # either wait for timeout ms
+        sleep(timeout * 1.0e-3)
+        total = 0
+    elseif timeout < 0 # or block indefinitely
+        total = take!(p._channel)
+    end # or don't block
     reset(p._trigger)
-    # reset all the rest
-    for task in p._tasks
-        schedule(task, ZMQResetPoll(), error=true)
-    end
-    schedule(p._sleeptask, ZMQResetPoll(), error=true)
     # get amount of events
-    total = 0
     while !isempty(p._channel)
         total += take!(p._channel)
     end
     # copy events to read array
-    copy!(p.revents, p._revents)
-    notify(p._trigger_reset)
-    for _ = 1:(length(p.revents) + 1)
-        take!(p._channel)
+    for i in eachindex(p._revents_lock)
+        lock(p._revents_lock[i])
+        p.revents[i] = p._revents[i]
+        unlock(p._revents_lock[i])
     end
-    reset(p._trigger_reset)
+    notify(p._trigger_reset)
     return total
 end
 
