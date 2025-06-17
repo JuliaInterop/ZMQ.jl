@@ -62,7 +62,8 @@ struct PollItems2
         trigger2 = Threads.Event()
         revents = zeros(Int16, length(socks))
         revents_lock = [ReentrantLock() for _ in eachindex(socks)]
-        tasks = map(i -> @spawn(_polltask(trigger, trigger2, channel, socks[i], Int16(events[i]), revents, revents_lock[i], i)), eachindex(events))
+        # All listening tasks must run on a single thread
+        tasks = map(i -> @async(_polltask(trigger, trigger2, channel, socks[i], Int16(events[i]), revents, revents_lock[i], i)), eachindex(events))
         notify(trigger2)
         return new(socks, events, deepcopy(revents), revents, tasks, channel, trigger, trigger2, revents_lock)
     end
@@ -82,9 +83,8 @@ function _polltask(set_trigger::Threads.Event, reset_trigger::Threads.Event, c::
             while socket.events & event == 0
                 #2
                 wait(socket)
+                socket.events & event != 0 && wait(set_trigger)
             end
-            #3
-            wait(set_trigger)
             lock(revents_lock)
             revents[index] = Int16(socket.events & event)
             result = count_ones(revents[index])

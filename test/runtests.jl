@@ -295,7 +295,7 @@ end
     rep2 = Socket(REP)
     poller = ZMQ.PollItems2([req1, rep1, rep2], [ZMQ.POLLIN, ZMQ.POLLIN, ZMQ.POLLIN])
 
-    timeout_ms = 1000
+    timeout_ms = 100
 
     addr = "inproc://s1"
     addr2 = "inproc://s2"
@@ -375,8 +375,6 @@ end
     send(rep_trigger, bye)
     wait(t)
 
-    # tests mostly work up until here
-
     # case 6: multiple sockets receive before call with timeout
     send(req1, hi)
     send(req2, hi)
@@ -390,16 +388,12 @@ end
     @test poll(poller, timeout_ms) == 1 # req2 is not in poller
     recv(req1)
     recv(req2)
-    return
 
     # case 7: multiple sockets receive during call with no timeout
-    println("Reached case 7")
     t1 = @spawn async_send(addr, trigger_addr, timeout_ms * 1.0e-4)
-    @show t1
     recv(rep_trigger)
     send(rep_trigger, bye)
     t2 = @spawn async_send(addr2, trigger_addr, timeout_ms * 1.0e-4)
-    @show t1
     recv(rep_trigger)
     num_events = poll(poller)
     @test 0 <= num_events <= 2 # could return 1 or 2 events
@@ -416,8 +410,6 @@ end
     send(rep2, bye)
     wait(t1)
     wait(t2)
-
-    return
 
     close(req1)
     close(rep1)
