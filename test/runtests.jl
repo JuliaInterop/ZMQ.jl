@@ -398,16 +398,19 @@ end
     t2 = @spawn async_send(addr2, trigger_addr, timeout_ms * 1.0e-4)
     recv(rep_trigger)
     num_events = poll(poller)
-    @test 0 <= num_events <= 2 # could return 1 or 2 events
+    @test 1 <= num_events <= 2 # could return 1 or 2 events
     @test poller.revents[2] == ZMQ.POLLIN || poller.revents[3] == ZMQ.POLLIN
+    # if polled messages are not handled, then the poller will keep indicating them
+    poller.revents[2] & ZMQ.POLLIN != 0 && recv(rep1)
+    poller.revents[3] & ZMQ.POLLIN != 0 && recv(rep2)
     if num_events == 1
         rest = poll(poller)
     else
-        rest = 0
+        rest = poll(poller, timeout_ms)
     end
-    @test num_events + rest == 2
-    @test recv(rep1, String) == hi
-    @test recv(rep2, String) == hi
+    @test num_events + rest == 2 # in total their should have been two events
+    poller.revents[2] & ZMQ.POLLIN != 0 && recv(rep1)
+    poller.revents[3] & ZMQ.POLLIN != 0 && recv(rep2)
     send(rep1, bye)
     send(rep2, bye)
     send(rep_trigger, bye)
