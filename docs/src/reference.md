@@ -70,3 +70,13 @@ isfreed(::Message)
 ```@docs
 ZMQ.context
 ```
+
+## Poller
+
+```@docs
+ZMQ.PollItems
+ZMQ.poll
+ZMQ.revents
+ZMQ.revents!
+```
+
