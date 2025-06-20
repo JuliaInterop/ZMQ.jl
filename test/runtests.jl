@@ -289,6 +289,7 @@ end
 
     ctx = Context()
     req1 = Socket(REQ)
+    req12 = Socket(REQ)
     rep1 = Socket(REP)
     rep_trigger = Socket(REP)
     req2 = Socket(REQ)
@@ -304,6 +305,7 @@ end
     bye = "World"
 
     connect(req1, addr)
+    connect(req12, addr)
     bind(rep1, addr)
     bind(rep_trigger, trigger_addr)
     bind(rep2, addr2)
@@ -408,10 +410,43 @@ end
     @test recv(rep2, String) == hi
     send(rep1, bye)
     send(rep2, bye)
+    send(rep_trigger, bye)
     wait(t1)
     wait(t2)
 
+    # case 8: multiple receives on the same socket
+    t1 = @spawn async_send(addr, trigger_addr, timeout_ms * 1.0e-4)
+    t2 = @spawn async_send(addr, trigger_addr, timeout_ms * 1.0e-4)
+    send(req1, hi)
+    send(req12, hi)
+    send(req2, hi)
+    num_sends = 5
+    recv(rep_trigger)
+    send(rep_trigger, bye)
+    recv(rep_trigger)
+    send(rep_trigger, bye)
+    counter = 0
+    while true
+        poll(poller)
+        if poller.revents[1] & ZMQ.POLLIN != 0
+            recv(req1)
+        end
+        if poller.revents[2] & ZMQ.POLLIN != 0
+            recv(rep1)
+            send(rep1, bye)
+            counter += 1
+            counter == num_sends && break
+        end
+        if poller.revents[3] & ZMQ.POLLIN != 0
+            recv(rep2)
+            send(rep2, bye)
+            counter += 1
+            counter == num_sends && break
+        end
+    end
+
     close(req1)
+    close(req12)
     close(rep1)
     close(req2)
     close(rep2)
