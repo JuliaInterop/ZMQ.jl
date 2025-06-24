@@ -10,9 +10,9 @@ import Base.GC: @preserve
 
 export
     #Types
-    StateError,Context,Socket,Message,
+    StateError,Context,Socket,Message, PollItems,
     #functions
-    set, subscribe, unsubscribe,
+    set, subscribe, unsubscribe, poll,
     #Constants
     IO_THREADS,MAX_SOCKETS,PAIR,PUB,SUB,REQ,REP,ROUTER,DEALER,PULL,PUSH,XPUB,XSUB,XREQ,XREP,UPSTREAM,DOWNSTREAM,MORE,POLLIN,POLLOUT,POLLERR,STREAMER,FORWARDER,QUEUE,SNDMORE,
     #Sockets

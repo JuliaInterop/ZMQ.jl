@@ -1,6 +1,3 @@
-import Base.Threads: @spawn
-export PollItems, poll
-
 struct ZMQStopPoll <: Exception end
 
 """
@@ -8,10 +5,11 @@ struct ZMQStopPoll <: Exception end
 Create a PollItems object to poll multiple sockets
 simultaneously. `socks` is the vector of sockets to poll. `events`
 represents ZMQ events to poll for. Valid values for `events` entries
-are `ZMQ.POLLIN`, `ZMQ.POLLOUT`, `ZMQ.POLLIN | ZMQ.POLLOUT`.
+are `ZMQ.POLLIN`, `ZMQ.POLLOUT` and `ZMQ.POLLIN | ZMQ.POLLOUT`.
 
 This object creates a poller and starts the necessary background tasks.
 To actually poll the sockets, use [`poll`](@ref).
+The poll result is written to the `revents` field of the `PollItems` struct.
 
 !!! warning
     This spawns tasks using `@async`, meaning that the task that
