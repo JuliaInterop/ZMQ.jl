@@ -11,6 +11,8 @@ This object creates a poller and starts the necessary background tasks.
 To actually poll the sockets, use [`poll`](@ref).
 The poll result is written to the `revents` field of the `PollItems` struct.
 
+When the poller is no longer needed, it is recommended to call `close(items::PollItems)`.
+
 !!! warning
     This spawns tasks using `@async`, meaning that the task that
     instantiates the PollItems object will become sticky. For more
@@ -26,6 +28,7 @@ struct PollItems
     _trigger::Threads.Event
     _trigger_reset::Threads.Event
     _revents_lock::Vector{ReentrantLock}
+    _isclosed::Ref{Bool}
     function PollItems(socks::Vector{Socket}, events::Vector{<:Integer})
         channel = Channel{Int16}(length(socks) + 1)
         trigger = Threads.Event()
@@ -34,8 +37,13 @@ struct PollItems
         revents_lock = [ReentrantLock() for _ in eachindex(socks)]
         # All listening tasks must run on a single thread
         tasks = map(i -> @async(_polltask(trigger, trigger2, channel, socks[i], Int16(events[i]), revents, revents_lock[i], i)), eachindex(events))
+        map(eachindex(tasks)) do i
+            finalizer(tasks[i]) do t
+                istaskdone(t) || schedule(t, ZMQStopPoll(), error = true)
+            end
+        end
         notify(trigger2)
-        return new(socks, events, deepcopy(revents), revents, tasks, channel, trigger, trigger2, revents_lock)
+        return new(socks, events, deepcopy(revents), revents, tasks, channel, trigger, trigger2, revents_lock, Ref(false))
     end
 end
 
@@ -66,7 +74,9 @@ function _polltask(set_trigger::Threads.Event, reset_trigger::Threads.Event, c::
             revents[index] = Int16(0)
             unlock(revents_lock)
         catch e
-            if e isa ZMQStopPoll
+
+            # stop polling || socket closed
+            if e isa ZMQStopPoll || e isa EOFError
                 break
             else
                 rethrow(e)
@@ -108,6 +118,7 @@ end
 ```
 """
 function poll(p::PollItems, timeout = -1)
+    p._isclosed[] && throw(StateError("Poller is closed"))
     # cancel reset task
     reset(p._trigger_reset)
     # reset indicators
@@ -133,4 +144,13 @@ function poll(p::PollItems, timeout = -1)
     end
     notify(p._trigger_reset)
     return total
+end
+
+function Base.close(poller::PollItems)
+    for task in poller._tasks
+        istaskdone(task) || schedule(task, ZMQStopPoll(), error = true)
+        wait(task)
+    end
+    poller._isclosed[] = true
+    return
 end

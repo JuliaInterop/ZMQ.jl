@@ -444,6 +444,13 @@ end
         end
     end
 
+    close(poller)
+    @test_throws StateError poll(poller, 0)
+
+    # test that even without poller sockets still functional
+    send(req1, hi)
+    @test recv(rep1, String) == hi
+
     close(req1)
     close(req12)
     close(rep1)
