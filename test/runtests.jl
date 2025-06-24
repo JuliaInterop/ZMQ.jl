@@ -290,7 +290,7 @@ end
     rep_trigger = Socket(REP)
     req2 = Socket(REQ)
     rep2 = Socket(REP)
-    poller = ZMQ.PollItems2([req1, rep1, rep2], [ZMQ.POLLIN, ZMQ.POLLIN, ZMQ.POLLIN])
+    poller = ZMQ.PollItems([req1, rep1, rep2], [ZMQ.POLLIN, ZMQ.POLLIN, ZMQ.POLLIN])
 
     timeout_ms = 100
 

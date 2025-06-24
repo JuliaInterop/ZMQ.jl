@@ -4,7 +4,7 @@ export PollItems, poll
 struct ZMQStopPoll <: Exception end
 
 """
-    PollItems2(socks::Vector{Socket}, events::Vector{<:Integer})
+    PollItems(socks::Vector{Socket}, events::Vector{<:Integer})
 Create a PollItems object to poll multiple sockets
 simultaneously. `socks` is the vector of sockets to poll. `events`
 represents ZMQ events to poll for. Valid values for `events` entries
@@ -18,7 +18,7 @@ To actually poll the sockets, use [`poll`](@ref).
     instantiates the PollItems object will become sticky. For more
     info refer to [the @async documentation](https://docs.julialang.org/en/v1/base/parallel/#Base.@async).
 """
-struct PollItems2
+struct PollItems
     sockets::Vector{Socket}
     events::Vector{Int16}
     revents::Vector{Int16}
@@ -28,7 +28,7 @@ struct PollItems2
     _trigger::Threads.Event
     _trigger_reset::Threads.Event
     _revents_lock::Vector{ReentrantLock}
-    function PollItems2(socks::Vector{Socket}, events::Vector{<:Integer})
+    function PollItems(socks::Vector{Socket}, events::Vector{<:Integer})
         channel = Channel{Int16}(length(socks) + 1)
         trigger = Threads.Event()
         trigger2 = Threads.Event()
@@ -79,7 +79,7 @@ function _polltask(set_trigger::Threads.Event, reset_trigger::Threads.Event, c::
 end
 
 """
-    poll(p::PollItems2, timeout = -1)
+    poll(p::PollItems, timeout = -1)
 Poll the PollItems for events. If no timeout is provided, this blocks
 until an event occurs. Otherwise it sleeps for `timeout` miliseconds
 and returns the amount of sockets for which an event occured.
@@ -97,7 +97,7 @@ received/sent. The following scenarios are valid:
 After polling socket input, the user should read from the socket until
 no more messages are available like so:
 ```julia
-p = PollItems2([socket1, socket2], [ZMQ.POLLIN, ZMQ.POLLIN])
+p = PollItems([socket1, socket2], [ZMQ.POLLIN, ZMQ.POLLIN])
 poll(p, 100)
 for i = eachindex(p.revents)
     if p.revents[i] & ZMQ.POLLIN != 0
@@ -109,7 +109,7 @@ for i = eachindex(p.revents)
 end
 ```
 """
-function poll(p::PollItems2, timeout = -1)
+function poll(p::PollItems, timeout = -1)
     # cancel reset task
     reset(p._trigger_reset)
     # reset indicators
