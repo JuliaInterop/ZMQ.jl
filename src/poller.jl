@@ -1,48 +1,23 @@
 import Base.Threads: @spawn
 export PollItems, poll
 
-"""
-    PollItems(socks::AbstractVector{Socket}, events::AbstractVector{T}) where {T<:Integer}
-    PollItems(sock_event_pairs::AbstractVector{Tuple{Socket, T}) where {T<:Integer}
-
-High-level `PollItems` object for polling multiple ZMQ sockets simultaneously.
-It is recommended poll via this object since the low-level API is unsafe.
-
-Events are specified as bitmasks, see the [libzmq documentation](https://libzmq.readthedocs.io/en/latest/zmq_poll.html).
-"""
-struct PollItems
-    inner::Vector{lib.zmq_pollitem_t}
-    sock::Vector{Socket}
-
-    function PollItems(
-            socks::AbstractVector{Socket},
-            events::AbstractVector{T}
-        ) where {T <: Integer}
-        return PollItems(convert(Vector{Socket}, socks), convert(Vector{T}, events))
-    end
-
-    function PollItems(v::AbstractVector{Tuple{Socket, T}}) where {T <: Integer}
-        return PollItems(first.(v), last.(v))
-    end
-
-    function PollItems(
-            socks::Vector{Socket},
-            events::Vector{<:Integer}
-        )
-        @assert length(socks) == length(events)
-        return new(
-            map(
-                (sock, event) ->
-                lib.zmq_pollitem_t(Base.unsafe_convert(Ptr{Cvoid}, sock), -1, Int16(event), Int16(0)),
-                socks, events
-            ), socks
-        )
-    end
-end
-
-struct ZMQResetPoll <: Exception end
 struct ZMQStopPoll <: Exception end
 
+"""
+    PollItems2(socks::Vector{Socket}, events::Vector{<:Integer})
+Create a PollItems object to poll multiple sockets
+simultaneously. `socks` is the vector of sockets to poll. `events`
+represents ZMQ events to poll for. Valid values for `events` entries
+are `ZMQ.POLLIN`, `ZMQ.POLLOUT`, `ZMQ.POLLIN | ZMQ.POLLOUT`.
+
+This object creates a poller and starts the necessary background tasks.
+To actually poll the sockets, use [`poll`](@ref).
+
+!!! warning
+    This spawns tasks using `@async`, meaning that the task that
+    instantiates the PollItems object will become sticky. For more
+    info refer to [the @async documentation](https://docs.julialang.org/en/v1/base/parallel/#Base.@async).
+"""
 struct PollItems2
     sockets::Vector{Socket}
     events::Vector{Int16}
@@ -53,10 +28,7 @@ struct PollItems2
     _trigger::Threads.Event
     _trigger_reset::Threads.Event
     _revents_lock::Vector{ReentrantLock}
-    function PollItems2(
-            socks::Vector{Socket},
-            events::Vector{<:Integer},
-        )
+    function PollItems2(socks::Vector{Socket}, events::Vector{<:Integer})
         channel = Channel{Int16}(length(socks) + 1)
         trigger = Threads.Event()
         trigger2 = Threads.Event()
@@ -73,7 +45,7 @@ function _polltask(set_trigger::Threads.Event, reset_trigger::Threads.Event, c::
     while true
         try
             # at any given poll there are three possible entrypoints:
-            # either the task enters at #1: previous call it finished
+            # either the task enters at #1: previous call finished
             # in time or it's the first poll. If the previous call
             # didn't finish, it's still waiting on the socket #2. If
             # it did finish but not within the timeout, then it's at
@@ -83,14 +55,14 @@ function _polltask(set_trigger::Threads.Event, reset_trigger::Threads.Event, c::
             while socket.events & event == 0
                 #2
                 wait(socket)
-                socket.events & event != 0 && wait(set_trigger)
+                socket.events & event != 0 && #= #3 =# wait(set_trigger)
             end
             lock(revents_lock)
             revents[index] = Int16(socket.events & event)
             result = count_ones(revents[index])
             unlock(revents_lock)
             put!(c, result)
-            #4
+            #4 wait until ready to poll again
             wait(reset_trigger)
             lock(revents_lock)
             revents[index] = Int16(0)
@@ -106,6 +78,37 @@ function _polltask(set_trigger::Threads.Event, reset_trigger::Threads.Event, c::
     return
 end
 
+"""
+    poll(p::PollItems2, timeout = -1)
+Poll the PollItems for events. If no timeout is provided, this blocks
+until an event occurs. Otherwise it sleeps for `timeout` miliseconds
+and returns the amount of sockets for which an event occured.
+
+# Note on event indicators and the poller
+The poller returns the amount of sockets for which events
+occured. This is not the same as the amount of messages which can be
+received/sent. The following scenarios are valid:
+- Socket 1 receives 1 message, the poller returns 1
+- Socket 1 receives 10 messages, the poller returns 1
+- Socket 1 receives 10 messages and socket 2 receives 1 message, the
+  poller returns 2
+- Socket 1 receives 10 messages and socket 2 receives 10 messages, the
+  poller returns 2
+After polling socket input, the user should read from the socket until
+no more messages are available like so:
+```julia
+p = PollItems2([socket1, socket2], [ZMQ.POLLIN, ZMQ.POLLIN])
+poll(p, 100)
+for i = eachindex(p.revents)
+    if p.revents[i] & ZMQ.POLLIN != 0
+       while p.sockets[i].events & ZMQ.POLLIN != 0
+             data = recv(p.sockets[i])
+             dostuff(data)
+        end
+    end
+end
+```
+"""
 function poll(p::PollItems2, timeout = -1)
     # cancel reset task
     reset(p._trigger_reset)
@@ -132,41 +135,4 @@ function poll(p::PollItems2, timeout = -1)
     end
     notify(p._trigger_reset)
     return total
-end
-
-function poll(pitems::Vector{lib.zmq_pollitem_t}, sock::AbstractVector{Socket}, timeout = -1)
-    return GC.@preserve sock begin
-        lib.zmq_poll(pitems, Cint(length(pitems)), Clong(timeout))
-    end
-end
-
-function poll(pitems::AbstractVector{lib.zmq_pollitem_t}, sock::AbstractVector{Socket}, timeout = -1)
-    return poll(convert(Vector{lib.zmq_pollitem_t}, pitems), sock, timeout)
-end
-
-"""
-    poll(p::PollItems, timeout::Integer = -1)
-Poll multiple sockets and return the amount of events. The timeout is specified in milliseconds. A negative timeout blocks indefinitely.
-"""
-function poll(p::PollItems, timeout = -1)
-    return poll(p.inner, p.sock, timeout)
-end
-
-"""
-    revents(p::PollItems)::Vector{Int16}
-Return all events for each socket. Allocates a new vector
-"""
-function revents(p::PollItems)
-    return map(item -> item.revents, p.inner)
-end
-
-"""
-    revents!(buffer::Vector{T}, p::PollItems) where {T<:Integer}
-Store socket events in buffer. See also [`revents`](@ref)
-"""
-function revents!(buffer::AbstractVector{T}, p::PollItems) where {T <: Integer}
-    for (i, j) in Iterators.zip(eachindex(p.inner), eachindex(buffer))
-        buffer[j] = p.inner[i].revents
-    end
-    return
 end

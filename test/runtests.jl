@@ -283,10 +283,6 @@ end
 
 @testset "ZMQPoll" begin
 
-    # import TestEnv; TestEnv.activate()
-    # import Base.Threads: @spawn
-    # using ZMQ, Test
-
     ctx = Context()
     req1 = Socket(REQ)
     req12 = Socket(REQ)
@@ -408,7 +404,7 @@ end
     else
         rest = poll(poller, timeout_ms)
     end
-    @test num_events + rest == 2 # in total their should have been two events
+    @test num_events + rest == 2 # in total there should have been two events
     poller.revents[2] & ZMQ.POLLIN != 0 && recv(rep1)
     poller.revents[3] & ZMQ.POLLIN != 0 && recv(rep2)
     send(rep1, bye)
