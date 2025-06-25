@@ -94,20 +94,6 @@ received/sent. The following scenarios are valid:
   poller returns 2
 - Socket 1 receives 10 messages and socket 2 receives 10 messages, the
   poller returns 2
-After polling socket input, the user should read from the socket until
-no more messages are available like so:
-```julia
-p = PollItems([socket1, socket2], [ZMQ.POLLIN, ZMQ.POLLIN])
-poll(p, 100)
-for i = eachindex(p.revents)
-    if p.revents[i] & ZMQ.POLLIN != 0
-       while p.sockets[i].events & ZMQ.POLLIN != 0
-             data = recv(p.sockets[i])
-             dostuff(data)
-        end
-    end
-end
-```
 """
 function poll(p::PollItems, timeout = -1)
     p._isclosed[] && throw(StateError("Poller is closed"))
