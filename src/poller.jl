@@ -1,4 +1,5 @@
 struct ZMQStopPoll <: Exception end
+struct ZMQResetPoll <: Exception end
 
 """
     PollItems(socks::Vector{Socket}, events::Vector{<:Integer})
@@ -22,68 +23,59 @@ struct PollItems
     sockets::Vector{Socket}
     events::Vector{Int16}
     revents::Vector{Int16}
-    _revents::Vector{Int16} # copy of revents to avoid race conditions with user code
+    _eventnotify::Channel{Bool}
+    _trigger::Threads.Condition
+    _ctimeout::Channel{Float64}
+    _handshake::Threads.Condition
     _tasks::Vector{Task}
-    _channel::Channel{Int16}
-    _trigger::Threads.Event
-    _trigger_reset::Threads.Event
-    _revents_lock::Vector{ReentrantLock}
     _isclosed::Ref{Bool}
     function PollItems(socks::Vector{Socket}, events::Vector{<:Integer})
-        channel = Channel{Int16}(length(socks) + 1)
-        trigger = Threads.Event()
-        trigger2 = Threads.Event()
-        revents = zeros(Int16, length(socks))
-        revents_lock = [ReentrantLock() for _ in eachindex(socks)]
-        # All listening tasks must run on a single thread
-        tasks = map(i -> @async(_polltask(trigger, trigger2, channel, socks[i], Int16(events[i]), revents, revents_lock[i], i)), eachindex(events))
-        map(eachindex(tasks)) do i
-            finalizer(tasks[i]) do t
-                istaskdone(t) || schedule(t, ZMQStopPoll(), error = true)
-            end
-        end
-        notify(trigger2)
-        return new(socks, events, deepcopy(revents), revents, tasks, channel, trigger, trigger2, revents_lock, Ref(false))
-    end
-end
-
-function _polltask(set_trigger::Threads.Event, reset_trigger::Threads.Event, c::Channel{T}, socket::Socket, event::Int16, revents::Vector{Int16}, revents_lock::ReentrantLock, index::Int) where {T}
-    while true
-        try
-            # at any given poll there are three possible entrypoints:
-            # either the task enters at #1: previous call finished
-            # in time or it's the first poll. If the previous call
-            # didn't finish, it's still waiting on the socket #2. If
-            # it did finish but not within the timeout, then it's at
-            # #3.
-            #1
-            wait(set_trigger)
-            while socket.events & event == 0
-                #2
-                wait(socket)
-                socket.events & event != 0 && #= #3 =# wait(set_trigger)
-            end
-            lock(revents_lock)
-            revents[index] = Int16(socket.events & event)
-            result = count_ones(revents[index])
-            unlock(revents_lock)
-            put!(c, result)
-            #4 wait until ready to poll again
-            wait(reset_trigger)
-            lock(revents_lock)
-            revents[index] = Int16(0)
-            unlock(revents_lock)
-        catch e
-
-            # stop polling || socket closed
-            if e isa ZMQStopPoll || e isa EOFError
-                break
-            else
+        @assert length(socks) == length(events)
+        eventnotify = Channel{Bool}()
+        trigger = Threads.Condition()
+        ctimeout = Channel{Float64}(1)
+        handshake = Threads.Condition()
+        timertask = @async while true
+            try
+                # receive timeout from poller
+                t = take!(ctimeout)
+                # notify poller that it has accepted
+                lock(() -> notify(handshake), handshake)
+                # wait until poller issues start
+                lock(() -> wait(trigger), trigger)
+                sleep(t)
+                put!(eventnotify, false)
+            catch e
+                e isa ZMQStopPoll && break
+                e isa ZMQResetPoll && continue
                 rethrow(e)
             end
         end
+        workertasks = map(zip(socks, events)) do (sock, event)
+            @async while isopen(sock)
+                try
+                    lock(() -> wait(trigger), trigger)
+                    while sock.events & event == 0
+                        wait(sock)
+                    end
+                    put!(eventnotify, true)
+                catch e
+                    # stop poll || socket closed
+                    (e isa ZMQStopPoll || e isa EOFError) && break
+                    if e isa ZMQResetPoll
+                        lock(() -> notify(handshake), handshake)
+                        continue
+                    end
+                    rethrow(e)
+                end
+            end
+        end
+        tasks = vcat(workertasks, timertask)
+        foreach(errormonitor, tasks)
+        errormonitor(timertask)
+        revents = zeros(Int16, length(socks))
+        return new(socks, Int16.(events), revents, eventnotify, trigger, ctimeout, handshake, tasks, Ref(false))
     end
-    return
 end
 
 """
@@ -119,30 +111,28 @@ end
 """
 function poll(p::PollItems, timeout = -1)
     p._isclosed[] && throw(StateError("Poller is closed"))
-    # cancel reset task
-    reset(p._trigger_reset)
-    # reset indicators
-    fill!(p.revents, 0)
-    # start all tasks
-    notify(p._trigger)
-    if timeout > 0 # either wait for timeout ms
-        sleep(timeout * 1.0e-3)
-        total = 0
-    elseif timeout < 0 # or block indefinitely
-        total = take!(p._channel)
-    end # or don't block
-    reset(p._trigger)
-    # get amount of events
-    while !isempty(p._channel)
-        total += take!(p._channel)
+    p.revents .= Int16(0)
+    if timeout > 0
+        # putting does not yield so wait until timer indicates readiness
+        # otherwise timer does not catch the trigger
+        put!(p._ctimeout, timeout * 1.0e-3) # convert ms to s
+        lock(() -> wait(p._handshake), p._handshake)
     end
-    # copy events to read array
-    for i in eachindex(p._revents_lock)
-        lock(p._revents_lock[i])
-        p.revents[i] = p._revents[i]
-        unlock(p._revents_lock[i])
+    if timeout != 0
+        lock(() -> notify(p._trigger), p._trigger)
+        events_happened = take!(p._eventnotify)
+        foreach(p._tasks) do task
+            schedule(task, ZMQResetPoll(), error = true)
+        end
+        # must yield for tasks to intercept the reset correctly
+        lock(() -> wait(p._handshake), p._handshake)
+        events_happened || return 0
     end
-    notify(p._trigger_reset)
+    total = 0
+    for i in eachindex(p.sockets)
+        p.revents[i] = p.sockets[i].events & p.events[i]
+        p.revents[i] == 0 || (total += 1;)
+    end
     return total
 end
 
