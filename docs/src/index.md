@@ -8,7 +8,7 @@
 
 - Access ZeroMQ sockets from Julia
 
-The [Guide](@ref) provides a tutorial explaining how to get started using ZMQ.jl.
+The [Basic Usage](@ref) and [Multiple Sockets](@ref) pages provide tutorials explaining how to get started using ZMQ.jl.
 
 Some examples are linked on the [Examples](@ref) page.
 
