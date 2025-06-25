@@ -35,10 +35,10 @@ jobs:
             version: '1'
           - os: ubuntu-latest
             arch: x64
-            version: '1.6'
+            version: 'min'
           - os: ubuntu-latest
             arch: x64
-            version: '1.3'
+            version: 'lts'
 
     steps:
       - uses: actions/checkout@v4
