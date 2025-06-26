@@ -35,20 +35,26 @@ struct PollItems
         trigger = Threads.Condition()
         ctimeout = Channel{Float64}(1)
         handshake = Threads.Condition()
-        timertask = @async while true
-            try
-                # receive timeout from poller
-                t = take!(ctimeout)
-                # notify poller that it has accepted
-                lock(() -> notify(handshake), handshake)
-                # wait until poller issues start
-                lock(() -> wait(trigger), trigger)
-                sleep(t)
-                put!(eventnotify, false)
-            catch e
-                e isa ZMQStopPoll && break
-                e isa ZMQResetPoll && continue
-                rethrow(e)
+        timertask = @async begin
+            lock(() -> notify(handshake), handshake)
+            while true
+                try
+                    # receive timeout from poller
+                    t = take!(ctimeout)
+                    # notify poller that it has accepted
+                    lock(() -> notify(handshake), handshake)
+                    # wait until poller issues start
+                    lock(() -> wait(trigger), trigger)
+                    sleep(t)
+                    put!(eventnotify, false)
+                catch e
+                    e isa ZMQStopPoll && break
+                    if e isa ZMQResetPoll
+                        lock(() -> notify(handshake), handshake)
+                        continue
+                    end
+                    rethrow(e)
+                end
             end
         end
         workertasks = map(zip(socks, events)) do (sock, event)
@@ -62,10 +68,7 @@ struct PollItems
                 catch e
                     # stop poll || socket closed
                     (e isa ZMQStopPoll || e isa EOFError) && break
-                    if e isa ZMQResetPoll
-                        lock(() -> notify(handshake), handshake)
-                        continue
-                    end
+                    e isa ZMQResetPoll && continue
                     rethrow(e)
                 end
             end
@@ -74,6 +77,8 @@ struct PollItems
         foreach(errormonitor, tasks)
         errormonitor(timertask)
         revents = zeros(Int16, length(socks))
+        # yield so all tasks can initialize
+        lock(() -> wait(handshake), handshake)
         return new(socks, Int16.(events), revents, eventnotify, trigger, ctimeout, handshake, tasks, Ref(false))
     end
 end

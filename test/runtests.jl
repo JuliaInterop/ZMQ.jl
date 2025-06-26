@@ -447,6 +447,24 @@ end
     close(poller)
     @test_throws StateError poll(poller, 0)
 
+    # case 9 new poller and first time poll without timeout
+    t = @spawn begin
+        rep3 = Socket(ctx, REP)
+        bind(rep3, "inproc://s3")
+        poller = ZMQ.PollItems([rep3], [ZMQ.POLLIN])
+        @test poll(poller) == 1
+        @test recv(rep3, String) == hi
+        send(rep3, bye)
+        close(poller)
+        close(rep3)
+    end
+    req3 = Socket(ctx, REQ)
+    connect(req3, "inproc://s3")
+    send(req3, hi)
+    @test recv(req3, String) == bye
+    wait(t)
+
+
     # test that even without poller sockets still functional
     send(req1, hi)
     @test recv(rep1, String) == hi
