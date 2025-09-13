@@ -7,6 +7,13 @@ CurrentModule = ZMQ
 This documents notable changes in ZMQ.jl. The format is based on [Keep a
 Changelog](https://keepachangelog.com).
 
+## [v1.5.0] - 2025-09-13
+
+### Added
+- Added support for the `rcvtimeo` property, now [`recv(::Socket)`](@ref) and
+  the other receive methods will throw a [`TimeoutError`](@ref) if the receive
+  times out ([#217]).
+
 ## [v1.4.1] - 2025-06-13
 
 ### Changed

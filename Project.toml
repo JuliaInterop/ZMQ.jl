@@ -1,10 +1,11 @@
 name = "ZMQ"
 uuid = "c2297ded-f4af-51ae-bb23-16f91089e4e1"
-version = "1.4.1"
+version = "1.5.0"
 
 [deps]
 FileWatching = "7b1f6079-737a-58dc-b8bc-7a2ca5c1b5ee"
 PrecompileTools = "aea7be01-6a6a-4083-8856-8a6e6704d82a"
+Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 Sockets = "6462fe0b-24de-5631-8697-dd941f90decc"
 ZeroMQ_jll = "8f1865be-045e-5c20-9c9f-bfbfb0764568"
 
@@ -12,6 +13,7 @@ ZeroMQ_jll = "8f1865be-045e-5c20-9c9f-bfbfb0764568"
 Aqua = "0.8.7"
 FileWatching = "<0.0.1, 1"
 PrecompileTools = "1"
+Printf = "<0.0.1, 1"
 Sockets = "<0.0.1, 1"
 Test = "<0.0.1, 1"
 ZeroMQ_jll = "4"

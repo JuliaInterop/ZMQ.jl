@@ -91,15 +91,13 @@ end
     @test ZMQ.recv(s2, Vector{Int}) == [314159, 12345]
 
     # Test task-blocking behavior
-    c = Base.Condition()
     global msg_sent = false
-    @async begin
+    t = @async begin
         global msg_sent
         sleep(0.5)
         msg_sent = true
         ZMQ.send(s2, Message("test request"))
         @test (unsafe_string(ZMQ.recv(s2)) == "test response")
-        notify(c)
     end
 
     # This will hang forver if ZMQ blocks the entire process since
@@ -107,7 +105,7 @@ end
     @test unsafe_string(ZMQ.recv(s1)) == "test request"
     @test msg_sent == true
     ZMQ.send(s1, Message("test response"))
-    wait(c)
+    wait(t)
 
     # Test _Message task-blocking behavior, similar to above
     c = Base.Condition()
@@ -124,6 +122,33 @@ end
     @test msg_sent == true
     ZMQ.send(s1, "another test response")
     wait(c)
+
+    @testset "Receive timeouts" begin
+        # Set s1's receive timeout to 0.5s, and check that it throws when there are
+        # no incoming messages.
+        s1.rcvtimeo = 500
+        recv_timeout_elapsed = @elapsed @test_throws ZMQ.TimeoutError ZMQ.recv(s1)
+        @test recv_timeout_elapsed >= s1.rcvtimeo / 1000
+
+        # Test that the receive timeout functionality yields and doesn't block
+        msg_sent = false
+        # Set the receive timeout to something large
+        s1.rcvtimeo = 10_000
+        t = @async begin
+            global msg_sent
+            sleep(0.5)
+            msg_sent = true
+            ZMQ.send(s2, "foo request")
+            @test ZMQ.recv(s2, String) == "bar response"
+        end
+
+        @test ZMQ.recv(s1, String) == "foo request"
+        @test msg_sent == true
+        ZMQ.send(s1, "bar response")
+        wait(t)
+        # Reset the timeout for the rest of the tests
+        s1.rcvtimeo = -1
+    end
 
     ZMQ.send(s2, Message("another test request"))
     msg = ZMQ.recv(s1)
@@ -282,6 +307,8 @@ end
 
 @testset "Utilities" begin
     @test ZMQ.lib_version() isa VersionNumber
+    @test repr(ZMQ.StateError("foo")) == "ZMQ: foo"
+    @test repr(ZMQ.TimeoutError("Foo", 1.2)) == "ZMQ.TimeoutError: Foo receive timed out after 1.20s"
 end
 
 @testset "Aqua.jl" begin

@@ -80,7 +80,21 @@ function _recv!(socket::Socket, zmsg)
         if -1 == lib.zmq_msg_recv(zmsg, socket, ZMQ_DONTWAIT)
             lib.zmq_errno() == EAGAIN || throw(StateError(jl_zmq_error_str()))
             while socket.events & POLLIN== 0
-                wait(socket)
+                # If there is no receive timeout, just wait on the socket
+                if socket.rcvtimeo == -1
+                    wait(socket)
+                else
+                    # Otherwise, implement a receive timeout for the wait. We
+                    # can't rely on ZMQ's native blocking behaviour because that
+                    # doesn't play nicely with Julia's tasks so instead we use
+                    # poll_fd() with a timeout. Note that we bypass the Socket's
+                    # own FDWatcher and pass the native ZMQ socket to poll_fd().
+                    timeout_secs = socket.rcvtimeo / 1000
+                    ret = poll_fd(fd(socket), timeout_secs; readable=true, writable=false)
+                    if ret.timedout
+                        throw(TimeoutError(repr(socket), timeout_secs))
+                    end
+                end
             end
         else
             notify_is_expensive = !isempty(getfield(socket,:pollfd).watcher.notify.waitq)
@@ -98,6 +112,12 @@ end
 
 Return a `Message` object representing a message received from a ZMQ `Socket`
 (without making a copy of the message data).
+
+If [`rcvtimeo`](https://libzmq.readthedocs.io/en/latest/zmq_setsockopt.html) is
+set then a [`TimeoutError`](@ref) will be thrown upon timeout. Note that because
+of the integration with Julia's event loop there is some overhead to using
+timeouts, on the order of ~10μs. All other `recv*()` methods also respect
+`rcvtimeo`.
 """
 Sockets.recv(socket::Socket) = _recv!(socket, Message())
 

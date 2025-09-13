@@ -6,6 +6,7 @@ CurrentModule = ZMQ
 
 ```@docs
 lib_version
+TimeoutError
 ```
 
 ## Sockets
