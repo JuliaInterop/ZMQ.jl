@@ -3,7 +3,7 @@
 module ZMQ
 
 using Base.Libc: EAGAIN
-using FileWatching: UV_READABLE, uv_pollcb, FDWatcher, poll_fd
+using FileWatching: UV_READABLE, uv_pollcb, FDWatcher, FDEvent, poll_fd
 using Printf: @sprintf
 import Sockets
 using Sockets: connect, bind, send, recv
@@ -38,6 +38,7 @@ include("sockopts.jl")
 include("message.jl")
 include("msg_bindings.jl")
 include("comm.jl")
+include("poller.jl")
 
 """
     lib_version()

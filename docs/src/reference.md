@@ -18,8 +18,8 @@ Socket
 Socket(::Context, ::Integer)
 Socket(::Integer)
 Socket(::Function)
-isopen
-close
+isopen(::Socket)
+close(::Socket)
 ```
 
 [`Socket`](@ref) implements the
@@ -64,6 +64,19 @@ Message(::SubString{String})
 Message(::DenseVector)
 Message(::IOBuffer)
 isfreed(::Message)
+```
+
+## Polling
+
+```@docs
+Poller
+Poller(::Vector{Socket})
+Poller(::Vector{PollItem})
+Poller(::Function, ::Any)
+Base.wait(::Poller)
+Base.close(::Poller)
+PollItem
+PollResult
 ```
 
 ## Context
