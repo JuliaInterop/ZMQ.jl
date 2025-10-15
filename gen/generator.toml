@@ -1,13 +1,16 @@
 [general]
 library_name = "libzmq"
 module_name = "lib"
-output_file_path = "../src/bindings.jl"
 print_using_CEnum = false
-output_ignorelist = ["ZMQ_VERSION", # This macro cannot be parsed by Clang.jl
-                     # These functions/types are deprecated
-                     "zmq_init", "zmq_term", "zmq_ctx_destroy",
-                     "zmq_device", "zmq_sendmsg", "zmq_recvmsg",
-                     "iovec", "zmq_sendiov", "zmq_recviov"]
+output_ignorelist = [
+    # These macros cannot be generated properly
+    "ZMQ_VERSION",
+    "ZMQ_EXPORT",
+    # These functions/types are deprecated
+    "zmq_init", "zmq_term", "zmq_ctx_destroy",
+    "zmq_device", "zmq_sendmsg", "zmq_recvmsg",
+    "iovec", "zmq_sendiov", "zmq_recviov"
+]
 prologue_file_path = "./prologue.jl"
 
 auto_mutability = true
