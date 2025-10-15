@@ -19,7 +19,16 @@ export
     #Sockets
     connect, bind, send, recv
 
-include("bindings.jl")
+@static if Sys.iswindows()
+    @static if Sys.WORD_SIZE == 32
+        include("../lib/i686-w64-mingw32.jl")
+    else
+        include("../lib/x86_64-w64-mingw32.jl")
+    end
+else
+    include("../lib/x86_64-linux-gnu.jl")
+end
+
 include("constants.jl")
 include("optutil.jl")
 include("error.jl")
