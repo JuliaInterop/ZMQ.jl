@@ -1,7 +1,7 @@
 import Aqua
 using ZMQ, Test
 
-@info("Testing with ZMQ version $(ZMQ.version)")
+@info("Testing with ZMQ version $(ZMQ.lib_version())")
 
 @testset "ZMQ contexts" begin
     ctx=Context()
