@@ -33,7 +33,7 @@ Base.unsafe_convert(::Type{Ptr{UInt8}}, zmsg::_MessageRef) = Ptr{UInt8}(lib.zmq_
 
 # isbits data, vectors thereof, and strings can be converted to/from _Message
 
-function _MessageRef(x::T) where {T}
+function create_MessageRef(x::T) where {T}
     isbitstype(T) || throw(MethodError(_MessageRef, (x,)))
     n = sizeof(x)
     zmsg = msg_init(n)
@@ -41,7 +41,7 @@ function _MessageRef(x::T) where {T}
     return zmsg
 end
 
-function _MessageRef(x::Vector{T}) where {T}
+function create_MessageRef(x::Vector{T}) where {T}
     isbitstype(T) || throw(MethodError(_MessageRef, (x,)))
     n = sizeof(x)
     zmsg = msg_init(n)
@@ -49,7 +49,7 @@ function _MessageRef(x::Vector{T}) where {T}
     return zmsg
 end
 
-function _MessageRef(x::String)
+function create_MessageRef(x::String)
     n = sizeof(x)
     zmsg = msg_init(n)
     ccall(:memcpy, Ptr{Cvoid}, (Ptr{UInt8}, Ptr{UInt8}, Csize_t), zmsg, x, n)
