@@ -35,7 +35,7 @@ to indicate that `data` is a portion of a larger multipart message.
 of large arrays.
 """
 function Sockets.send(socket::Socket, data; more::Bool=false)
-    zmsg = _MessageRef(data)
+    zmsg = create_MessageRef(data)
     try
         _send(socket, zmsg, more)
     finally
