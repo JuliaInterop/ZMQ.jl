@@ -7,6 +7,12 @@ CurrentModule = ZMQ
 This documents notable changes in ZMQ.jl. The format is based on [Keep a
 Changelog](https://keepachangelog.com).
 
+## Unreleased
+
+### Added
+- Implemented a [`Poller`](@ref) to poll multiple ZMQ sockets ([#262]). This
+  also required bumping the minimum supported Julia version to 1.10.
+
 ## [v1.5.1] - 2025-11-04
 
 ### Fixed

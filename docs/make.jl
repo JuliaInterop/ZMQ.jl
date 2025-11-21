@@ -1,6 +1,10 @@
 using Documenter, ZMQ
 import Changelog
 
+if isdefined(Main, :Revise)
+    Revise.revise()
+end
+
 # Build the changelog
 Changelog.generate(
     Changelog.Documenter(),
