@@ -84,7 +84,11 @@ The fields are:
 - `readable::Bool`
 - `writable::Bool`
 """
-const PollResult = @NamedTuple{socket::Socket, readable::Bool, writable::Bool}
+struct PollResult
+    socket::Socket
+    readable::Bool
+    writable::Bool
+end
 
 """
 A `Poller` can wait on multiple sockets simultaneously for them to be ready for
@@ -162,7 +166,7 @@ function handle_pollitem(item::PollItem, poller::Poller)
                 # Otherwise tell the poller we have something
                 readable = (c_pollitem[].revents & lib.ZMQ_POLLIN) == lib.ZMQ_POLLIN
                 writable = (c_pollitem[].revents & lib.ZMQ_POLLOUT) == lib.ZMQ_POLLOUT
-                result = (; socket=item.socket, readable, writable)
+                result = PollResult(item.socket, readable, writable)
                 put!(poller.channel, result)
             end
         end

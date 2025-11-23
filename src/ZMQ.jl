@@ -92,7 +92,12 @@ import PrecompileTools: @compile_workload
     ZMQ.send(s2, msg)
     unsafe_string(ZMQ.recv(s1))
     ZMQ.send(s1, Message("test response"))
+
+    p = Poller([s2])
+    wait(p)
     unsafe_string(ZMQ.recv(s2))
+
+    close(p)
     ZMQ.close(s1)
     ZMQ.close(s2)
 
