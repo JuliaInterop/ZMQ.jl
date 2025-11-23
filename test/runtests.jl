@@ -341,11 +341,11 @@ end
     # Smoke test
     ZMQ.Poller([sub1, sub2]) do poller
         ZMQ.send(pub1, "foo")
-        @test wait(poller) == (; socket=sub1, readable=true, writable=false)
+        @test wait(poller) == ZMQ.PollResult(sub1, true, false)
         @test ZMQ.recv(sub1, String) == "foo"
 
         ZMQ.send(pub2, "bar")
-        @test wait(poller) == (; socket=sub2, readable=true, writable=false)
+        @test wait(poller) == ZMQ.PollResult(sub2, true, false)
         @test ZMQ.recv(sub2, String) == "bar"
     end
 
@@ -362,7 +362,7 @@ end
     ZMQ.Poller([sub2]) do poller
         # Sanity test
         ZMQ.send(pub2, "foo")
-        @test wait(poller; timeout=0.1) == (; socket=sub2, readable=true, writable=false)
+        @test wait(poller; timeout=0.1) == ZMQ.PollResult(sub2, true, false)
         @test ZMQ.recv(sub2, String) == "foo"
 
         # Test timeouts work
@@ -374,7 +374,7 @@ end
         # cancellation message without blocking.
         ZMQ.cancel(poller, :foo)
         ZMQ.send(pub2, "foo")
-        @test wait(poller) == (; socket=sub2, readable=true, writable=false)
+        @test wait(poller) == ZMQ.PollResult(sub2, true, false)
         @test ZMQ.recv(sub2, String) == "foo"
     end
 
