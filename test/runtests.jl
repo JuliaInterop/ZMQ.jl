@@ -1,7 +1,7 @@
 import Aqua
 using ZMQ, Test
 
-@info("Testing with ZMQ version $(ZMQ.version)")
+@info("Testing with ZMQ version $(ZMQ.lib_version())")
 
 @testset "ZMQ contexts" begin
     ctx=Context()
@@ -48,6 +48,9 @@ end
     s=Socket(PUB)
     @test s isa Socket
     ZMQ.close(s)
+
+    # Notifying a closed socket will cause a segfault
+    @test_throws ArgumentError notify(s)
 
     s1=Socket(REP)
     s1.sndhwm = 1000
@@ -305,10 +308,108 @@ end
     @test !isopen(leaked_ctx)
 end
 
+@testset "Poller" begin
+    pub1 = ZMQ.Socket(ZMQ.PUB)
+    pub2 = ZMQ.Socket(ZMQ.PUB)
+    ZMQ.bind(pub1, "inproc://pub1")
+    ZMQ.bind(pub2, "inproc://pub2")
+
+    sub1 = ZMQ.Socket(ZMQ.SUB)
+    sub2 = ZMQ.Socket(ZMQ.SUB)
+    ZMQ.subscribe(sub1, "")
+    ZMQ.subscribe(sub2, "")
+    ZMQ.connect(sub1, "inproc://pub1")
+    ZMQ.connect(sub2, "inproc://pub2")
+
+    # Sleep for a bit to prevent the 'slow joiner' problem
+    sleep(0.5)
+
+    # Test that opening and closing a poller works
+    poller = ZMQ.Poller([sub1, sub2])
+    close(poller)
+    @test length(poller.tasks) == 2
+    @test all(istaskdone, poller.tasks)
+
+    # Test that closing is idempotent
+    poller = ZMQ.Poller([sub1, sub2])
+    close(poller)
+    close(poller)
+
+    # Waiting on a closed poller should throw
+    @test_throws ArgumentError wait(poller)
+
+    # Smoke test
+    ZMQ.Poller([sub1, sub2]) do poller
+        ZMQ.send(pub1, "foo")
+        @test wait(poller) == (; socket=sub1, readable=true, writable=false)
+        @test ZMQ.recv(sub1, String) == "foo"
+
+        ZMQ.send(pub2, "bar")
+        @test wait(poller) == (; socket=sub2, readable=true, writable=false)
+        @test ZMQ.recv(sub2, String) == "bar"
+    end
+
+    # Test behaviour when a waiter task dies, e.g. because the socket is closed
+    ZMQ.Poller([sub1, sub2]) do poller
+        close(sub1)
+        @test_warn r"Socket error when polling" @test_throws ErrorException wait(poller)
+    end
+
+    # It shouldn't be possible to create a poller with closed sockets
+    @test_throws ArgumentError ZMQ.Poller([sub1])
+
+    # Test timeouts and cancellation
+    ZMQ.Poller([sub2]) do poller
+        # Sanity test
+        ZMQ.send(pub2, "foo")
+        @test wait(poller; timeout=0.1) == (; socket=sub2, readable=true, writable=false)
+        @test ZMQ.recv(sub2, String) == "foo"
+
+        # Test timeouts work
+        e = @elapsed @test_throws ZMQ.TimeoutError wait(poller; timeout=0.1)
+        @test e >= 0.1
+
+        # wait(::Poller) should ignore any existing cancellation messages. Also,
+        # this should not hang because the channel should have space for one
+        # cancellation message without blocking.
+        ZMQ.cancel(poller, :foo)
+        ZMQ.send(pub2, "foo")
+        @test wait(poller) == (; socket=sub2, readable=true, writable=false)
+        @test ZMQ.recv(sub2, String) == "foo"
+    end
+
+    # Test closing the poller from different tasks. Repeat 10 times to try to
+    # trigger any race conditions.
+    for _ in 1:10
+        ZMQ.Poller([sub2]) do poller
+            t = Threads.@spawn wait(poller)
+
+            if rand() > 0.5
+                sleep(0.001)
+            end
+            close(poller)
+
+            # We expect either the poller to be closed in the initial checks, or
+            # potentially while it's taking from the channel.
+            @test_throws r"Poller (was|is) closed" fetch(t)
+        end
+    end
+
+    poller = ZMQ.Poller([sub2])
+    @test repr(poller) == "ZMQ.Poller([Socket(SUB, inproc://pub2)])"
+    close(poller)
+    @test repr(poller) == "ZMQ.Poller([Socket(SUB, inproc://pub2)]) (closed)"
+
+    close(sub1)
+    close(sub2)
+    close(pub1)
+    close(pub2)
+end
+
 @testset "Utilities" begin
     @test ZMQ.lib_version() isa VersionNumber
     @test repr(ZMQ.StateError("foo")) == "ZMQ: foo"
-    @test repr(ZMQ.TimeoutError("Foo", 1.2)) == "ZMQ.TimeoutError: Foo receive timed out after 1.20s"
+    @test repr(ZMQ.TimeoutError("Foo", 1.2)) == "ZMQ.TimeoutError: Foo"
 end
 
 @testset "Aqua.jl" begin

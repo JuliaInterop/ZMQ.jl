@@ -91,19 +91,24 @@ function _recv!(socket::Socket, zmsg)
                     # own FDWatcher and pass the native ZMQ socket to poll_fd().
                     timeout_secs = socket.rcvtimeo / 1000
                     ret = poll_fd(fd(socket), timeout_secs; readable=true, writable=false)
+
                     if ret.timedout
-                        throw(TimeoutError(repr(socket), timeout_secs))
+                        timeout_str = @sprintf("%.2fs", socket.rcvtimeo)
+                        msg = "$(repr(socket)) receive timed out after $(timeout_str)"
+                        throw(TimeoutError(msg, timeout_secs))
                     end
                 end
             end
         else
             notify_is_expensive = !isempty(getfield(socket,:pollfd).watcher.notify.waitq)
+
             if notify_is_expensive
                 socket.events != 0 && notify(socket)
             end
             break
         end
     end
+
     return zmsg
 end
 

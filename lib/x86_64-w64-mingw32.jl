@@ -95,6 +95,14 @@ function Base.setproperty!(x::Ptr{zmq_msg_t}, f::Symbol, v)
     unsafe_store!(getproperty(x, f), v)
 end
 
+function Base.propertynames(x::zmq_msg_t, private::Bool = false)
+    (:_, if private
+            fieldnames(typeof(x))
+        else
+            ()
+        end...)
+end
+
 # typedef void ( zmq_free_fn ) ( void * data_ , void * hint_ )
 const zmq_free_fn = Cvoid
 
@@ -332,7 +340,7 @@ function zmq_socket_monitor(s_, addr_, events_)
     ccall((:zmq_socket_monitor, libzmq), Cint, (Ptr{Cvoid}, Ptr{Cchar}, Cint), s_, addr_, events_)
 end
 
-const zmq_fd_t = Cint
+const zmq_fd_t = Culonglong
 
 mutable struct zmq_pollitem_t
     socket::Ptr{Cvoid}
@@ -604,8 +612,6 @@ const ZMQ_VERSION_MAJOR = 4
 const ZMQ_VERSION_MINOR = 3
 
 const ZMQ_VERSION_PATCH = 5
-
-# Skipping MacroDefinition: ZMQ_EXPORT __attribute__ ( ( visibility ( "default" ) ) )
 
 const ZMQ_DEFINED_STDINT = 1
 

@@ -80,27 +80,34 @@ function get_docs(node, doc)
 end
 
 cd(@__DIR__) do
-    # Set the options
-    options = Clang.load_options(joinpath(@__DIR__, "generator.toml"))
-    options["general"]["callback_documentation"] = get_docs
-    header = joinpath(ZeroMQ_jll.artifact_dir, "include", "zmq.h")
-    args = Clang.get_default_args()
+    for target in ("x86_64-linux-gnu", "x86_64-w64-mingw32", "i686-w64-mingw32")
+        @info "Generating for $(target)"
 
-    # Generate the generic bindings
-    ctx = Clang.create_context([header], args, options)
-    Clang.build!(ctx)
+        # Set the options
+        options = Clang.load_options(joinpath(@__DIR__, "generator.toml"))
+        options["general"]["output_file_path"] = joinpath(@__DIR__, "..", "lib", "$(target).jl")
+        options["general"]["callback_documentation"] = get_docs
+        header = joinpath(ZeroMQ_jll.artifact_dir, "include", "zmq.h")
+        args = Clang.get_default_args(target)
 
-    # Generate the Message methods we need
-    module_name = Symbol(options["general"]["module_name"])
-    msg_methods = get_msg_methods(ctx, module_name)
-    output_file = joinpath(@__DIR__, "../src/msg_bindings.jl")
-    open(output_file; write=true) do io
-        # Import symbols required by the bindings
-        write(io, "import ZeroMQ_jll: libzmq\n")
-        write(io, "import .lib: zmq_free_fn\n\n")
+        # Generate the generic bindings
+        ctx = Clang.create_context([header], args, options)
+        Clang.build!(ctx)
 
-        for expr in msg_methods
-            write(io, string(expr), "\n\n")
+        if target == "x86_64-linux-gnu"
+            # Generate the Message methods we need
+            module_name = Symbol(options["general"]["module_name"])
+            msg_methods = get_msg_methods(ctx, module_name)
+            output_file = joinpath(@__DIR__, "../src/msg_bindings.jl")
+            open(output_file; write=true) do io
+                # Import symbols required by the bindings
+                write(io, "import ZeroMQ_jll: libzmq\n")
+                write(io, "import .lib: zmq_free_fn\n\n")
+
+                for expr in msg_methods
+                    write(io, string(expr), "\n\n")
+                end
+            end
         end
     end
 end

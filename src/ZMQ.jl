@@ -3,7 +3,7 @@
 module ZMQ
 
 using Base.Libc: EAGAIN
-using FileWatching: UV_READABLE, uv_pollcb, FDWatcher, poll_fd
+using FileWatching: UV_READABLE, uv_pollcb, FDWatcher, FDEvent, poll_fd
 using Printf: @sprintf
 import Sockets
 using Sockets: connect, bind, send, recv
@@ -19,7 +19,16 @@ export
     #Sockets
     connect, bind, send, recv
 
-include("bindings.jl")
+@static if Sys.iswindows()
+    @static if Sys.WORD_SIZE == 32
+        include("../lib/i686-w64-mingw32.jl")
+    else
+        include("../lib/x86_64-w64-mingw32.jl")
+    end
+else
+    include("../lib/x86_64-linux-gnu.jl")
+end
+
 include("constants.jl")
 include("optutil.jl")
 include("error.jl")
@@ -29,6 +38,7 @@ include("sockopts.jl")
 include("message.jl")
 include("msg_bindings.jl")
 include("comm.jl")
+include("poller.jl")
 
 """
     lib_version()
