@@ -1,7 +1,3 @@
-# This is the next bit up from what libuv can return:
-# https://github.com/JuliaLang/julia/blob/b907bd0600f7041cce39a028cd63a1e154b42d62/stdlib/FileWatching/src/FileWatching.jl#L54-L57
-const WAKEUP = Int32(1 << 5)
-
 """
 A ZMQ socket.
 """
@@ -21,8 +17,7 @@ mutable struct Socket
             throw(StateError(jl_zmq_error_str()))
         end
         socket = new(p, ctx)
-        # The extra WAKEUP flag is to watch for wakeup notifications from the poller
-        setfield!(socket, :pollfd, FDWatcher(fd(socket), FDEvent(UV_READABLE | WAKEUP)))
+        setfield!(socket, :pollfd, FDWatcher(fd(socket), FDEvent(UV_READABLE)))
         finalizer(close, socket)
         push!(getfield(ctx, :sockets), WeakRef(socket))
         return socket
