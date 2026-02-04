@@ -144,13 +144,12 @@ function handle_pollitem(item::PollItem, poller::Poller)
 
     try
         while isopen(poller.channel)
-            # Wait to arm the poller. This is the 1st place the function may block.
-            waiter_wait(poller.barrier)
+            # resting/disarmed block when the Poller isn't actively `wait`ing
+            waiter_wait(barrier) # may block/yield
             if !isopen(poller.channel)
                 return
             end
 
-            # Wait for the socket. This is the 2nd place the function may block.
             ret = lib.zmq_poll(c_pollitem, 1, 0)
             event = FDEvent(0)
             while ret == 0
@@ -175,25 +174,22 @@ function handle_pollitem(item::PollItem, poller::Poller)
             end
 
             if ret == -1
-                throw(StateError("Socket error when polling $(item.socket): " * jl_zmq_error_str()))
-            end
-
-            if (event.events & WAKEUP) == WAKEUP
-                # If it was a dummy event from the poller then do nothing
+                close(poller.channel, StateError("Socket error when polling $(item.socket): " * jl_zmq_error_str())) # may block/yield
+            elseif (event.events & WAKEUP) == WAKEUP
+                # WAKEUP cancels a `wait(item.socket)` so this can resync at the barrier
                 continue
             else
                 # Otherwise tell the poller we have something
                 readable = (c_pollitem[].revents & lib.ZMQ_POLLIN) == lib.ZMQ_POLLIN
                 writable = (c_pollitem[].revents & lib.ZMQ_POLLOUT) == lib.ZMQ_POLLOUT
                 result = PollResult(item.socket, readable, writable)
-                put!(poller.channel, result)
+                put!(poller.channel, result) # may block/yield
             end
         end
     catch ex
         @error "Polling $(item.socket) failed." exception=(ex, catch_backtrace())
     finally
-        handle_waiter_exit(barrier)
-        close(poller.channel)
+        handle_waiter_exit(barrier) # may block/yield
     end
 end
 
@@ -315,15 +311,7 @@ function Base.wait(poller::Poller; timeout::Real=-1)
 
     try
         poll_result::Union{PollResult, Symbol} = Symbol()
-        try
-            poll_result = take!(poller.channel)
-        catch ex
-            if ex isa InvalidStateException
-                error("Poller was closed")
-            else
-                rethrow()
-            end
-        end
+        poll_result = take!(poller.channel)
 
         if poll_result isa Symbol
             if poll_result == :zmq_jl_timeout
@@ -333,6 +321,12 @@ function Base.wait(poller::Poller; timeout::Real=-1)
             end
         else
             return poll_result
+        end
+    catch ex
+        if ex isa InvalidStateException
+            error("Poller was closed")
+        else
+            rethrow()
         end
     finally
         if !isnothing(timer)

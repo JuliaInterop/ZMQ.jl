@@ -352,7 +352,7 @@ end
     # Test behaviour when a waiter task dies, e.g. because the socket is closed
     ZMQ.Poller([sub1, sub2]) do poller
         close(sub1)
-        @test_warn r"Socket error when polling" @test_throws ErrorException wait(poller)
+        @test_throws StateError wait(poller)
     end
 
     # It shouldn't be possible to create a poller with closed sockets
