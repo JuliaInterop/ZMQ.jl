@@ -64,6 +64,7 @@ struct PollItem
     socket::Socket
     readable::Bool
     writable::Bool
+    waiting_on_socket::Threads.SpinLock
 end
 
 """
@@ -73,7 +74,7 @@ This object can be passed to a [`Poller`](@ref) to indicate whether the poller
 should wait for `socket` to become readable (`ZMQ_POLLIN`) or writable
 (`ZMQ_POLLOUT`).
 """
-PollItem(socket::Socket; readable=true, writable=false) = PollItem(socket, readable, writable)
+PollItem(socket::Socket; readable=true, writable=false) = PollItem(socket, readable, writable, Threads.SpinLock())
 
 """
 This object represents an event on a socket. It's returned by
@@ -152,9 +153,25 @@ function handle_pollitem(item::PollItem, poller::Poller)
             # Wait for the socket. This is the 2nd place the function may block.
             ret = lib.zmq_poll(c_pollitem, 1, 0)
             event = FDEvent(0)
-            while ret == 0 && (event.events & WAKEUP) == 0
-                event = wait(item.socket)
-                ret = lib.zmq_poll(c_pollitem, 1, 0)
+            while ret == 0
+                # acquire the lock on first loop iteration
+                islocked(item.waiting_on_socket) || lock(item.waiting_on_socket)
+                try
+                    event = wait(item.socket) # may block/yield
+                catch e
+                    # ignore error from closed socket that will caught by the next zmq_poll
+                    if !(e isa EOFError)
+                        rethrow()
+                    end
+                else
+                    (event.events & WAKEUP) == WAKEUP && break
+                finally
+                    ret = lib.zmq_poll(c_pollitem, 1, 0)
+                     # only unlock when exiting the loop
+                    if ret == 0 || (event.events & WAKEUP) == WAKEUP
+                        unlock(item.waiting_on_socket)
+                    end
+                end
             end
 
             if ret == -1
@@ -322,10 +339,11 @@ function Base.wait(poller::Poller; timeout::Real=-1)
             close(timer)
         end
 
-        # Disarm all the waiters and wait for them to synchronize so that there's no
-        # chance of the socket being used by multiple threads.
-        for item in poller.items
-            if isopen(item.socket)
+        # Disarm all the unfinished and unsynchronized waiters and wait for them to
+        # synchronize so that there's no chance of the socket being used by multiple
+        # threads.
+        for (t,item) in zip(poller.tasks, poller.items)
+            if !istaskdone(t) && islocked(item.waiting_on_socket) && isopen(item.socket)
                 notify(item.socket, WAKEUP)
             end
         end
@@ -361,16 +379,23 @@ Close a [`Poller`](@ref). It does not close the pollers sockets. This function
 is threadsafe and can be called at any time.
 """
 function Base.close(poller::Poller)
-    # Close the channel and barrier so all waiters will exit
-    close(poller.channel)
-    close(poller.barrier)
-
-    # Wakeup any waiters waiting on the socket
-    for item in poller.items
-        if isopen(item.socket)
+    # Wakeup any remaining waiters waiting on the socket
+    for (t,item) in zip(poller.tasks, poller.items)
+        if !istaskdone(t) && islocked(item.waiting_on_socket) && isopen(item.socket)
             notify(item.socket, WAKEUP)
+            # if !istaskdone(t)
+            #     @warn "task didn't finish?!"
+            #     wait(t)
+            # end
         end
     end
+
+    # Close the channel and barrier so all waiters will exit
+    close(poller.channel)
+    # notify(poller.barrier) # wakeup any synced waiters
+
+    # coordinator_wait(poller.barrier)
+    close(poller.barrier)
 
     # Wait for the waiters
     for t in poller.tasks
