@@ -116,7 +116,7 @@ close(poller)
 struct Poller
     items::Vector{PollItem}
     tasks::Vector{Task}
-    wait_in_progress::Base.Event
+    not_waiting::Base.Event
     barrier::NotifiableBarrier
     channel::Channel{Union{PollResult, Symbol}}
 end
@@ -214,7 +214,7 @@ function Poller(items::Vector{PollItem})
     coordinator_wait(poller.barrier)
 
     # Signal the wait_in_progress Event since wait() has not been called yet
-    notify(poller.wait_in_progress)
+    notify(poller.not_waiting)
 
     return poller
 end
@@ -269,7 +269,7 @@ function Base.wait(poller::Poller; timeout::Real=-1)
     #   called.
     # - The function guarantees all the waiters will be at the barrier before the
     #   function returns.
-    # - poller.wait_in_progress will be unsignalled while the function is operating on the
+    # - poller.not_waiting will be unsignalled while the function is operating on the
     #   poller sockets.
 
     while isready(poller.channel)
@@ -284,7 +284,7 @@ function Base.wait(poller::Poller; timeout::Real=-1)
     end
 
     # Reset to ensure that close(::Poller) will wait for this call to finish
-    reset(poller.wait_in_progress)
+    reset(poller.not_waiting)
 
     # Arm all the waiters
     notify(poller.barrier)
@@ -337,7 +337,7 @@ function Base.wait(poller::Poller; timeout::Real=-1)
         # being incorrectly used the next time wait() is called.
         clear_wakeup_events(poller)
 
-        notify(poller.wait_in_progress)
+        notify(poller.not_waiting)
     end
 end
 
@@ -383,5 +383,5 @@ function Base.close(poller::Poller)
     # wait(::Poller) notifies the sockets and we want to ensure all of those
     # operations are done before returning so that the user can safely close the
     # sockets or whatever.
-    wait(poller.wait_in_progress)
+    wait(poller.not_waiting)
 end
