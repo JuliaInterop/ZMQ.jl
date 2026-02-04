@@ -345,7 +345,11 @@ function clear_wakeup_events(poller::Poller)
     for item in poller.items
         if isopen(item.socket)
             pollfd = getfield(item.socket, :pollfd)
-            pollfd.watcher.events &= ~WAKEUP
+            events = pollfd.watcher.events
+            # if (events & WAKEUP) == WAKEUP
+            #     @error "" item.socket, events exception=(ErrorException(""), backtrace())
+            # end
+            @lock pollfd.watcher.notify pollfd.watcher.events &= ~WAKEUP
         end
     end
 end
