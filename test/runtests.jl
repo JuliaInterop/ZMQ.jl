@@ -408,8 +408,8 @@ end
 
 @testset "Utilities" begin
     @test ZMQ.lib_version() isa VersionNumber
-    @test repr(ZMQ.StateError("foo")) == "ZMQ: foo"
-    @test repr(ZMQ.TimeoutError("Foo", 1.2)) == "ZMQ.TimeoutError: Foo"
+    @test sprint(showerror, ZMQ.StateError("foo")) == "ZMQ: foo"
+    @test sprint(showerror, ZMQ.TimeoutError("Foo", 1.2)) == "ZMQ.TimeoutError: Foo"
 end
 
 @testset "Aqua.jl" begin
