@@ -153,12 +153,15 @@ function cancel_socket_wait(item)
 
         pollfd = getfield(item.socket, :pollfd)
         t = pollfd.watcher
-        # hold fdwatcher lock to prevent race between checking istaskdone (no WAKEUP needed) and notify (which must interrupt/cancel an in progress socket wait)
+        # hold fdwatcher lock to prevent race between checking istaskdone (no WAKEUP needed)
+        # and notify (which must interrupt/cancel an in progress socket wait)
         @lock t.notify begin
-            # if the task is not already finished, the only possible states now (with notify lock held) are:
+            # if the task is not already finished, the only possible states now (with notify
+            # lock held) are:
             #   1. already waiting on t.notify (within _wait(::_FDWatcher))
             #   2. about to _wait(::_FDWatcher)
-            # in either case a WAKEUP is guaranteed to resolve things (socket_waiter WILL finish, and WAKEUP will be cleared)
+            # in either case a WAKEUP is guaranteed to resolve things (socket_waiter WILL
+            # finish, and WAKEUP will be cleared)
             istaskdone(item.socket_waiter) && return
             t.events |= WAKEUP # if the task is about to wait
             if isempty(t.notify)
@@ -171,7 +174,13 @@ function cancel_socket_wait(item)
                 notify(t.notify, WAKEUP) # for actively waiting tasks
             end
         end
-        wait(item.socket_waiter)
+        try
+            # technically can throw if the socket (and fd) is concurrently closed between
+            # the internal _wait(::_FDWatcher) and the following isopen(::FDWatcher) check
+            # however, it only matters that the task is done
+            wait(item.socket_waiter)
+        catch
+        end
     end
 end
 
