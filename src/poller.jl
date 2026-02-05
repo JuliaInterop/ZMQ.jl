@@ -234,7 +234,8 @@ function handle_pollitem(item::PollItem, poller::Poller)
         # reachable by:
         #   - `put!` on already closed channel
         #   - `fetch`ing a failed socket waiter
-        cancel_socket_wait(item)
+        #   - respawning failed
+        # in all cases, the socket_waiter will already be canceled or done (failed)
         close(poller.channel, err)
     finally
         handle_waiter_exit(barrier)
