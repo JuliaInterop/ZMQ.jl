@@ -177,10 +177,10 @@ function handle_pollitem(item::PollItem, poller::Poller)
     barrier = poller.barrier
 
     try
-        while isopen(poller.channel)
+        while isopen(poller)
             # resting/disarmed block until barrier is notified (begins `wait(::Poller)`
             waiter_wait(barrier)
-            if !isopen(poller.channel)
+            if !isopen(poller)
                 cancel_socket_wait(item)
                 return
             end
