@@ -48,10 +48,13 @@ function Base.close(barrier::NotifiableBarrier)
     end
 end
 
-# This should be called by a waiter when it dies so it doesn't cause the
-# coordinator to hang.
+# Called when a waiter task exits. In normal shutdown, barrier.closed is
+# already true (set by close(barrier)) so this is a no-op. In error cases
+# where a waiter dies while the barrier is still active, this ensures the
+# coordinator doesn't hang waiting for all N waiters to check in.
 function handle_waiter_exit(barrier::NotifiableBarrier)
     @lock barrier.waiter_condition begin
+        barrier.closed && return # no need to update/notify if the barrier is closed
         barrier.count += 1
         if barrier.count == barrier.n
             notify(barrier)
@@ -221,7 +224,7 @@ function handle_pollitem(item::PollItem, poller::Poller)
         cancel_socket_wait(item)
         close(poller.channel, err)
     finally
-        handle_waiter_exit(barrier) # may block/yield
+        handle_waiter_exit(barrier)
     end
 end
 
@@ -390,9 +393,9 @@ function clear_wakeup_events(poller::Poller)
         if isopen(item.socket)
             pollfd = getfield(item.socket, :pollfd)
             events = pollfd.watcher.events
-            # if (events & WAKEUP) == WAKEUP
-            #     @error "" item.socket, events exception=(ErrorException(""), backtrace())
-            # end
+            if (events & WAKEUP) == WAKEUP
+                @error "" item.socket, events exception=(ErrorException(""), backtrace())
+            end
             @lock pollfd.watcher.notify pollfd.watcher.events &= ~WAKEUP
         end
     end
