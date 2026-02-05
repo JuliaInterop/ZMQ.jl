@@ -80,7 +80,11 @@ This object can be passed to a [`Poller`](@ref) to indicate whether the poller
 should wait for `socket` to become readable (`ZMQ_POLLIN`) or writable
 (`ZMQ_POLLOUT`).
 """
-PollItem(socket::Socket; readable=true, writable=false) = PollItem(socket, readable, writable)
+function PollItem(socket::Socket; readable=true, writable=false)
+    readable || writable || throw(ArgumentError("at least one poll state (readable or writable) must be set true"))
+    PollItem(socket, readable, writable)
+end
+
 """
 This object represents an event on a socket. It's returned by
 [`wait(::Poller)`](@ref).
