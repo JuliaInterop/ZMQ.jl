@@ -141,7 +141,9 @@ Base.isopen(poller::Poller) = isopen(poller.channel)
 
 function respawn_waiter(item)
     @lock item.lock begin
-        isdefined(item, :socket_waiter) && !istaskdone(item.socket_waiter) && error("logical invariant broken")
+        if isdefined(item, :socket_waiter) && !istaskdone(item.socket_waiter)
+            throw(AssertionError("pre-existing socket waiters must be done before a new socket waiter task can be spawned"))
+        end
         item.socket_waiter = Threads.@spawn wait(item.socket)
     end
 end
@@ -150,6 +152,7 @@ function cancel_socket_wait(item)
     @lock item.lock begin
         isdefined(item, :socket_waiter) || return
         isopen(item.socket) || return
+        istaskdone(item.socket_waiter) && return
 
         pollfd = getfield(item.socket, :pollfd)
         t = pollfd.watcher
@@ -232,12 +235,17 @@ function handle_pollitem(item::PollItem, poller::Poller)
         end
     catch err
         # reachable by:
-        #   - `put!` on already closed channel
-        #   - `fetch`ing a failed socket waiter
-        #   - respawning failed
-        # in all cases, the socket_waiter will already be canceled or done (failed)
-        close(poller.channel, err)
+        #   1. `put!` on already closed channel
+        #   2. `fetch`ing a failed socket waiter
+        #   3. respawning failed
+        # in cases 1 & 2, the socket_waiter will already be canceled or done (failed)
+        cancel_socket_wait(item)
+        if isopen(poller.channel)
+            # only close if necessary, to avoid overwriting the error
+            close(poller.channel, err)
+        end
     finally
+        cancel_socket_wait(item)
         handle_waiter_exit(barrier)
     end
 end
