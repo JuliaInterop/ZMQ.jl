@@ -309,29 +309,27 @@ end
 end
 
 @testset "Poller" begin
-    pub1 = ZMQ.Socket(ZMQ.PUB)
-    pub2 = ZMQ.Socket(ZMQ.PUB)
-    ZMQ.bind(pub1, "inproc://pub1")
-    ZMQ.bind(pub2, "inproc://pub2")
+    push1 = ZMQ.Socket(ZMQ.PUSH)
+    push2 = ZMQ.Socket(ZMQ.PUSH)
+    ZMQ.bind(push1, "inproc://push1")
+    ZMQ.bind(push2, "inproc://push2")
 
-    sub1 = ZMQ.Socket(ZMQ.SUB)
-    sub2 = ZMQ.Socket(ZMQ.SUB)
-    ZMQ.subscribe(sub1, "")
-    ZMQ.subscribe(sub2, "")
-    ZMQ.connect(sub1, "inproc://pub1")
-    ZMQ.connect(sub2, "inproc://pub2")
+    pull1 = ZMQ.Socket(ZMQ.PULL)
+    pull2 = ZMQ.Socket(ZMQ.PULL)
+    ZMQ.connect(pull1, "inproc://push1")
+    ZMQ.connect(pull2, "inproc://push2")
 
     # Sleep for a bit to prevent the 'slow joiner' problem
     sleep(0.5)
 
     # Test that opening and closing a poller works
-    poller = ZMQ.Poller([sub1, sub2])
+    poller = ZMQ.Poller([pull1, pull2])
     close(poller)
     @test length(poller.tasks) == 2
     @test all(istaskdone, poller.tasks)
 
     # Test that closing is idempotent
-    poller = ZMQ.Poller([sub1, sub2])
+    poller = ZMQ.Poller([pull1, pull2])
     close(poller)
     close(poller)
 
@@ -339,31 +337,31 @@ end
     @test_throws ArgumentError wait(poller)
 
     # Smoke test
-    ZMQ.Poller([sub1, sub2]) do poller
-        ZMQ.send(pub1, "foo")
-        @test wait(poller) == ZMQ.PollResult(sub1, true, false)
-        @test ZMQ.recv(sub1, String) == "foo"
+    ZMQ.Poller([pull1, pull2]) do poller
+        ZMQ.send(push1, "foo")
+        @test wait(poller) == ZMQ.PollResult(pull1, true, false)
+        @test ZMQ.recv(pull1, String) == "foo"
 
-        ZMQ.send(pub2, "bar")
-        @test wait(poller) == ZMQ.PollResult(sub2, true, false)
-        @test ZMQ.recv(sub2, String) == "bar"
+        ZMQ.send(push2, "bar")
+        @test wait(poller) == ZMQ.PollResult(pull2, true, false)
+        @test ZMQ.recv(pull2, String) == "bar"
     end
 
     # Test behaviour when a waiter task dies, e.g. because the socket is closed
-    ZMQ.Poller([sub1, sub2]) do poller
-        close(sub1)
+    ZMQ.Poller([pull1, pull2]) do poller
+        close(pull1)
         @test_throws StateError wait(poller)
     end
 
     # It shouldn't be possible to create a poller with closed sockets
-    @test_throws ArgumentError ZMQ.Poller([sub1])
+    @test_throws ArgumentError ZMQ.Poller([pull1])
 
     # Test timeouts and cancellation
-    ZMQ.Poller([sub2]) do poller
+    ZMQ.Poller([pull2]) do poller
         # Sanity test
-        ZMQ.send(pub2, "foo")
-        @test wait(poller; timeout=0.1) == ZMQ.PollResult(sub2, true, false)
-        @test ZMQ.recv(sub2, String) == "foo"
+        ZMQ.send(push2, "foo")
+        @test wait(poller; timeout=0.1) == ZMQ.PollResult(pull2, true, false)
+        @test ZMQ.recv(pull2, String) == "foo"
 
         # Test timeouts work
         e = @elapsed @test_throws ZMQ.TimeoutError wait(poller; timeout=0.1)
@@ -373,15 +371,15 @@ end
         # this should not hang because the channel should have space for one
         # cancellation message without blocking.
         ZMQ.cancel(poller, :foo)
-        ZMQ.send(pub2, "foo")
-        @test wait(poller) == ZMQ.PollResult(sub2, true, false)
-        @test ZMQ.recv(sub2, String) == "foo"
+        ZMQ.send(push2, "foo")
+        @test wait(poller) == ZMQ.PollResult(pull2, true, false)
+        @test ZMQ.recv(pull2, String) == "foo"
     end
 
     # Test closing the poller from different tasks. Repeat 10 times to try to
     # trigger any race conditions.
     for _ in 1:10
-        ZMQ.Poller([sub2]) do poller
+        ZMQ.Poller([pull2]) do poller
             t = Threads.@spawn wait(poller)
 
             if rand() > 0.5
@@ -395,15 +393,15 @@ end
         end
     end
 
-    poller = ZMQ.Poller([sub2])
-    @test repr(poller) == "ZMQ.Poller([Socket(SUB, inproc://pub2)])"
+    poller = ZMQ.Poller([pull2])
+    @test repr(poller) == "ZMQ.Poller([Socket(PULL, inproc://push2)])"
     close(poller)
-    @test repr(poller) == "ZMQ.Poller([Socket(SUB, inproc://pub2)]) (closed)"
+    @test repr(poller) == "ZMQ.Poller([Socket(PULL, inproc://push2)]) (closed)"
 
-    close(sub1)
-    close(sub2)
-    close(pub1)
-    close(pub2)
+    close(pull1)
+    close(pull2)
+    close(push1)
+    close(push2)
 end
 
 @testset "Utilities" begin
