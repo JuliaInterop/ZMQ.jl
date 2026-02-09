@@ -64,10 +64,10 @@ function handle_waiter_exit(barrier::NotifiableBarrier)
 end
 
 mutable struct PollItem
-    socket::Socket
-    readable::Bool
-    writable::Bool
-    lock::Threads.ReentrantLock
+    const socket::Socket
+    const readable::Bool
+    const writable::Bool
+    const lock::Threads.ReentrantLock
     socket_waiter::Task
 
     PollItem(socket, readable, writable) = new(socket, readable, writable, ReentrantLock())
@@ -149,16 +149,17 @@ function respawn_waiter(item)
 end
 
 function cancel_socket_wait(item)
+    socket = item.socket
     @lock item.lock begin
         isdefined(item, :socket_waiter) || return
-        isopen(item.socket) || return
+        isopen(socket) || return
         istaskdone(item.socket_waiter) && return
 
-        pollfd = getfield(item.socket, :pollfd)
-        t = pollfd.watcher
+        pollfd = getfield(socket, :pollfd)
+        fdw = pollfd.watcher
         # hold fdwatcher lock to prevent race between checking istaskdone (no WAKEUP needed)
         # and notify (which must interrupt/cancel an in progress socket wait)
-        @lock t.notify begin
+        @lock fdw.notify begin
             # if the task is not already finished, the only possible states now (with notify
             # lock held) are:
             #   1. already waiting on t.notify (within _wait(::_FDWatcher))
@@ -166,20 +167,20 @@ function cancel_socket_wait(item)
             # in either case a WAKEUP is guaranteed to resolve things (socket_waiter WILL
             # finish, and WAKEUP will be cleared)
             istaskdone(item.socket_waiter) && return
-            t.events |= WAKEUP # if the task is about to wait
-            if isempty(t.notify)
+            fdw.events |= WAKEUP # if the task is about to wait
+            if isempty(fdw.notify)
                 # copied from FileWatching.uv_pollcb
-                if (t.active[1] || t.active[2])
-                    t.active = (false, false)
-                    GC.@preserve t ccall(:uv_poll_stop, Int32, (Ptr{Cvoid},), t.handle)
+                if fdw.active[1] || fdw.active[2]
+                    fdw.active = (false, false)
+                    GC.@preserve fdw ccall(:uv_poll_stop, Int32, (Ptr{Cvoid},), fdw.handle)
                 end
             else
-                notify(t.notify, WAKEUP) # for actively waiting tasks
+                notify(fdw.notify, WAKEUP) # for actively waiting tasks
             end
         end
         try
-            # technically can throw if the socket (and fd) is concurrently closed between
-            # the internal _wait(::_FDWatcher) and the following isopen(::FDWatcher) check
+            # technically can throw if the fd/socket is concurrently closed between
+            # the internal _wait(::_FDWatcher) and the following isopen(::FDWatcher)
             # however, it only matters that the task is done
             wait(item.socket_waiter)
         catch
