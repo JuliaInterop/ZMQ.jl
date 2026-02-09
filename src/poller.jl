@@ -159,14 +159,19 @@ function cancel_socket_wait(item)
         fdw = pollfd.watcher
         # hold fdwatcher lock to prevent race between checking istaskdone (no WAKEUP needed)
         # and notify (which must interrupt/cancel an in progress socket wait)
+        fdevents = FDEvent(0)
+        haswaiters = false
         @lock fdw.notify begin
+            istaskdone(item.socket_waiter) && return
             # if the task is not already finished, the only possible states now (with notify
             # lock held) are:
-            #   1. already waiting on t.notify (within _wait(::_FDWatcher))
-            #   2. about to _wait(::_FDWatcher)
-            # in either case a WAKEUP is guaranteed to resolve things (socket_waiter WILL
+            #   1. currently waiting on fdw.notify within _wait(::_FDWatcher) (needs notify'ed)
+            #   2. about to _wait(::_FDWatcher) (needs events set)
+            #   3. about to clear events with results of _wait(::_FDWatcher)
+            # a WAKEUP is needed in the first two cases to resolve things (socket_waiter WILL
             # finish, and WAKEUP will be cleared)
-            istaskdone(item.socket_waiter) && return
+
+            fdevents = fdw.events
             fdw.events |= WAKEUP # if the task is about to wait
             if isempty(fdw.notify)
                 # copied from FileWatching.uv_pollcb
@@ -175,7 +180,7 @@ function cancel_socket_wait(item)
                     GC.@preserve fdw ccall(:uv_poll_stop, Int32, (Ptr{Cvoid},), fdw.handle)
                 end
             else
-                notify(fdw.notify, WAKEUP) # for actively waiting tasks
+                haswaiters = notify(fdw.notify, WAKEUP) > 0 # for actively waiting tasks
             end
         end
         try
@@ -185,7 +190,17 @@ function cancel_socket_wait(item)
             wait(item.socket_waiter)
         catch
         end
+        if (fdw.events & WAKEUP) == WAKEUP
+            @debug begin
+                ebefore = fdevents
+                eafter = fdw.events
+                "Spurious WAKEUP set for $socket"
+            end haswaiters, ebefore=>eafter exception=(ErrorException("Spurious WAKEUP detected"), backtrace())
+            @lock fdw.notify fdw.events &= ~WAKEUP
+        end
     end
+
+    return
 end
 
 # Long-running function to watch a socket.
@@ -402,25 +417,7 @@ function Base.wait(poller::Poller; timeout::Real=-1)
 
         coordinator_wait(poller.barrier)
 
-        # Clear any old WAKEUP events from the FDWatcher. Necessary because
-        # FDWatcher is level-triggered and we don't want old WAKEUP events from
-        # being incorrectly used the next time wait() is called.
-        clear_wakeup_events(poller)
-
         notify(poller.not_waiting)
-    end
-end
-
-function clear_wakeup_events(poller::Poller)
-    for item in poller.items
-        if isopen(item.socket)
-            pollfd = getfield(item.socket, :pollfd)
-            events = pollfd.watcher.events
-            if (events & WAKEUP) == WAKEUP
-                @error "" item.socket, events exception=(ErrorException(""), backtrace())
-            end
-            @lock pollfd.watcher.notify pollfd.watcher.events &= ~WAKEUP
-        end
     end
 end
 
@@ -446,8 +443,6 @@ function Base.close(poller::Poller)
     for t in poller.tasks
         wait(t)
     end
-
-    clear_wakeup_events(poller)
 
     # Wait for any wait(::Poller) call to finish. This is necessary because
     # wait(::Poller) notifies the sockets and we want to ensure all of those
