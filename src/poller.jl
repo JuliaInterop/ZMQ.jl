@@ -172,16 +172,20 @@ function cancel_socket_wait(item)
             # finish, and WAKEUP will be cleared)
 
             fdevents = fdw.events
-            fdw.events |= WAKEUP # if the task is about to wait
-            if isempty(fdw.notify)
+            if fdw.events != 0
+                @assert isempty(fdw.notify)
+
                 # copied from FileWatching.uv_pollcb
                 if fdw.active[1] || fdw.active[2]
                     fdw.active = (false, false)
                     GC.@preserve fdw ccall(:uv_poll_stop, Int32, (Ptr{Cvoid},), fdw.handle)
                 end
-            else
-                haswaiters = notify(fdw.notify, WAKEUP) > 0 # for actively waiting tasks
+                @goto try_end # no return/break to end a try clause early
             end
+
+            fdw.events |= WAKEUP # for the non-blocking fast path in _wait(::_FDWatcher)
+            haswaiters = notify(fdw.notify, WAKEUP) > 0 # for actively waiting tasks
+            @label try_end
         end
         try
             # technically can throw if the fd/socket is concurrently closed between
