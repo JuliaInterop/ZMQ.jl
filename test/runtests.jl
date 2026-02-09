@@ -1,5 +1,5 @@
 import Aqua
-using ZMQ, Test
+using ZMQ, Test, Logging
 
 @info("Testing with ZMQ version $(ZMQ.lib_version())")
 
@@ -425,6 +425,30 @@ end
     pull1 = ZMQ.Socket(ZMQ.PULL)
     ZMQ.connect(pull1, "inproc://push1")
 
+    @testset "no spurious WAKEUPs" begin
+        ENV["JULIA_DEBUG"] = "ZMQ"
+        for _ in 1:50 # in case the test isn't deterministic
+            item = ZMQ.PollItem(pull1)
+            item.socket_waiter = @async wait(item.socket) # stickiness of async important to keep things deterministic
+
+            fdw = getfield(pull1, :pollfd).watcher
+            @test timedwait(() -> (@lock fdw.notify !isempty(fdw.notify)), 0.5) === :ok # confirm waiting
+
+            @test_logs min_level=Logging.Warn let
+                local t
+                @lock fdw.notify begin
+                    t = popfirst!(fdw.notify.waitq)  # remove from waitq (like notify does)
+                    fdw.events |= Int32(1)           # UV_READABLE
+                end
+                ctask = @async ZMQ.cancel_socket_wait(item)
+                yield()
+                wait(schedule(t, Int32(1)))                # now release socket waiter to finish with UV_READABLE
+                wait(ctask)
+            end
+        end
+        ENV["JULIA_DEBUG"] = ""
+    end
+
     # respawning fails; exercises main handle_pollitem catch clause, origin 3
     @testset "respawning fail" begin
         item = ZMQ.PollItem(pull1)
@@ -440,7 +464,7 @@ end
         ZMQ.coordinator_wait(poller.barrier)
 
         notify(poller.barrier) # waiters released, throw in first respawn call
-        @test_throws ZMQ.InvariantError take!(poller.channel)
+        @test_throws AssertionError take!(poller.channel)
 
         # error handled, so waiter tasks should exit cleanly
         t = only(poller.tasks)
@@ -458,7 +482,7 @@ end
         end
         # releasing the lock allows `handle_pollitem` to try and fail to respawn at the
         # second respawn point
-        @test_throws ZMQ.InvariantError take!(poller.channel)
+        @test_throws AssertionError take!(poller.channel)
 
         # error handled, so waiter tasks should exit cleanly
         t = only(poller.tasks)
