@@ -1,5 +1,5 @@
 import Aqua
-using ZMQ, Test
+using ZMQ, Test, Logging
 
 @info("Testing with ZMQ version $(ZMQ.lib_version())")
 
@@ -309,29 +309,195 @@ end
 end
 
 @testset "Poller" begin
-    pub1 = ZMQ.Socket(ZMQ.PUB)
-    pub2 = ZMQ.Socket(ZMQ.PUB)
-    ZMQ.bind(pub1, "inproc://pub1")
-    ZMQ.bind(pub2, "inproc://pub2")
+    push1 = ZMQ.Socket(ZMQ.PUSH)
+    push2 = ZMQ.Socket(ZMQ.PUSH)
+    ZMQ.bind(push1, "inproc://push1")
+    ZMQ.bind(push2, "inproc://push2")
 
-    sub1 = ZMQ.Socket(ZMQ.SUB)
-    sub2 = ZMQ.Socket(ZMQ.SUB)
-    ZMQ.subscribe(sub1, "")
-    ZMQ.subscribe(sub2, "")
-    ZMQ.connect(sub1, "inproc://pub1")
-    ZMQ.connect(sub2, "inproc://pub2")
+    pull1 = ZMQ.Socket(ZMQ.PULL)
+    pull2 = ZMQ.Socket(ZMQ.PULL)
+    ZMQ.connect(pull1, "inproc://push1")
+    ZMQ.connect(pull2, "inproc://push2")
 
     # Sleep for a bit to prevent the 'slow joiner' problem
     sleep(0.5)
 
+
+    # while isopen(poller)
+    #   - never enters (false the first time)
+    #   - enters at least once
+    #   - exits after at least one loop iteration
+    @testset "isopen(poller) branches" begin
+        poller = ZMQ.Poller([ZMQ.PollItem(pull1)],
+                        Task[],
+                        Base.Event(),
+                        ZMQ.NotifiableBarrier(1),
+                        Channel{Union{ZMQ.PollResult, Symbol}}(2))
+        close(poller.channel)
+        # never enters poll loop, channel already closed
+        t = Threads.@spawn ZMQ.handle_pollitem(only(poller.items), poller)
+        @test timedwait(()->istaskdone(t), 0.5) === :ok
+        @test !istaskfailed(t)
+
+        # enters poll loop, synchronizes at barrier
+        poller = ZMQ.Poller([pull1])
+        close(poller.channel) # channel closed
+        notify(poller.barrier) # waiters released, all exit loop
+        t = only(poller.tasks)
+        @test timedwait(()->istaskdone(t), 0.5) === :ok
+        @test !istaskfailed(t)
+
+        # enters poll loop, synchronizes at barrier
+        poller = ZMQ.Poller([pull1])
+        notify(poller.barrier) # waiters released, enter inner loop
+        close(poller.channel)
+        # continue inner loop from fetch to exit via WAKEUP break, while conditional is false
+        ZMQ.cancel_socket_wait(only(poller.items))
+        t = only(poller.tasks)
+        @test timedwait(()->istaskdone(t), 0.5) === :ok
+        @test !istaskfailed(t)
+    end
+
+    # read socket ZMQ_EVENTS
+    #   - non-zero ZMQ_EVENTS read
+    #   - socket error
+    @testset failfast=true "reading socket ZMQ_EVENTS" begin
+        # non-zero ZMQ_EVENTS read
+        poller = ZMQ.Poller([pull1])
+        ZMQ.send(push1, "foo")
+        notify(poller.barrier)
+        @test timedwait(()->isready(poller.channel), 0.5) === :ok
+        @test istaskdone(only(poller.items).socket_waiter)
+        @test take!(poller.channel) == ZMQ.PollResult(pull1, true, false)
+        @test ZMQ.recv(pull1, String) == "foo"
+
+        ZMQ.coordinator_wait(poller.barrier)
+        close(pull1)
+        notify(poller.barrier)
+        # waiters released, enter inner loop, getsockopt ZMQ_EVENTS throws
+        @test timedwait(()->!isopen(poller.channel), 0.5) === :ok
+        @test_throws ZMQ.StateError take!(poller.channel)
+
+        # socket closed mid-wait will also throw in the socket_waiter
+        @test timedwait(()->istaskfailed(only(poller.items).socket_waiter), 0.5) === :ok
+
+        # error handled, so waiter tasks should exit cleanly
+        t = only(poller.tasks)
+        @test timedwait(()->istaskdone(t), 0.5) === :ok
+        @test !istaskfailed(t)
+    end
+
+    # recreate closed socket
+    pull1 = ZMQ.Socket(ZMQ.PULL)
+    ZMQ.connect(pull1, "inproc://push1")
+
+    # ZMQ_EVENTS matches mask but channel is closed
+    @testset "put!-ing socket ZMQ_EVENTS on closed poller" begin
+        poller = ZMQ.Poller([pull1])
+        notify(poller.barrier) # waiters released, enter inner loop, wait on socket
+        close(poller.channel)
+        ZMQ.send(push1, "foo")
+        # exercises main catch clause, origin 1
+        @test_throws InvalidStateException take!(poller.channel)
+
+        # error handled, so waiter tasks should exit cleanly
+        t = only(poller.tasks)
+        @test timedwait(()->istaskdone(t), 0.5) === :ok
+        @test !istaskfailed(t)
+
+        @test ZMQ.recv(pull1, String) == "foo"
+    end
+
+    # waiting on socket throws; exercises main handle_pollitem catch clause, origin 2
+    @testset "throw from socket_waiter" begin
+        poller = ZMQ.Poller([pull1])
+        notify(poller.barrier) # waiters released, enter inner loop, wait on socket
+        close(pull1) # makes wait(socket) throw
+        @test timedwait(()->istaskfailed(only(poller.items).socket_waiter), 0.5) === :ok
+
+        # error handled, so waiter tasks should exit cleanly
+        t = only(poller.tasks)
+        @test timedwait(()->istaskdone(t), 0.5) === :ok
+        @test !istaskfailed(t)
+    end
+
+    # recreate closed socket
+    pull1 = ZMQ.Socket(ZMQ.PULL)
+    ZMQ.connect(pull1, "inproc://push1")
+
+    @testset "no spurious WAKEUPs" begin
+        ENV["JULIA_DEBUG"] = "ZMQ"
+        for _ in 1:50 # in case the test isn't deterministic
+            item = ZMQ.PollItem(pull1)
+            item.socket_waiter = @async wait(item.socket) # stickiness of async important to keep things deterministic
+
+            fdw = getfield(pull1, :pollfd).watcher
+            @test timedwait(() -> (@lock fdw.notify !isempty(fdw.notify)), 0.5) === :ok # confirm waiting
+
+            @test_logs min_level=Logging.Warn let
+                local t
+                @lock fdw.notify begin
+                    t = popfirst!(fdw.notify.waitq)  # remove from waitq (like notify does)
+                    fdw.events |= Int32(1)           # UV_READABLE
+                end
+                ctask = @async ZMQ.cancel_socket_wait(item)
+                yield()
+                wait(schedule(t, Int32(1)))                # now release socket waiter to finish with UV_READABLE
+                wait(ctask)
+            end
+        end
+        ENV["JULIA_DEBUG"] = ""
+    end
+
+    # respawning fails; exercises main handle_pollitem catch clause, origin 3
+    @testset "respawning fail" begin
+        item = ZMQ.PollItem(pull1)
+         # break the respawn precondition that the task is undefined or has been canceled
+        ZMQ.respawn_waiter(item)
+
+        poller = ZMQ.Poller([item],
+                        Task[],
+                        Base.Event(),
+                        ZMQ.NotifiableBarrier(1),
+                        Channel{Union{ZMQ.PollResult, Symbol}}(2))
+        push!(poller.tasks, Threads.@spawn ZMQ.handle_pollitem(item, poller))
+        ZMQ.coordinator_wait(poller.barrier)
+
+        notify(poller.barrier) # waiters released, throw in first respawn call
+        @test_throws AssertionError take!(poller.channel)
+
+        # error handled, so waiter tasks should exit cleanly
+        t = only(poller.tasks)
+        @test timedwait(()->istaskdone(t), 0.5) === :ok
+        @test !istaskfailed(t)
+
+        poller = ZMQ.Poller([pull1])
+        item = only(poller.items)
+        notify(poller.barrier) # waiters released, enter inner loop, wait on socket
+
+        # the socket_waiter doesn't hold the item lock, so we acquire and respawn first
+        @lock item.lock begin
+            ZMQ.cancel_socket_wait(item)
+            ZMQ.respawn_waiter(item)
+        end
+        # releasing the lock allows `handle_pollitem` to try and fail to respawn at the
+        # second respawn point
+        @test_throws AssertionError take!(poller.channel)
+
+        # error handled, so waiter tasks should exit cleanly
+        t = only(poller.tasks)
+        @test timedwait(()->istaskdone(t), 0.5) === :ok
+        @test !istaskfailed(t)
+    end
+
     # Test that opening and closing a poller works
-    poller = ZMQ.Poller([sub1, sub2])
+    poller = ZMQ.Poller([pull1, pull2])
     close(poller)
     @test length(poller.tasks) == 2
     @test all(istaskdone, poller.tasks)
 
     # Test that closing is idempotent
-    poller = ZMQ.Poller([sub1, sub2])
+    poller = ZMQ.Poller([pull1, pull2])
     close(poller)
     close(poller)
 
@@ -339,31 +505,31 @@ end
     @test_throws ArgumentError wait(poller)
 
     # Smoke test
-    ZMQ.Poller([sub1, sub2]) do poller
-        ZMQ.send(pub1, "foo")
-        @test wait(poller) == ZMQ.PollResult(sub1, true, false)
-        @test ZMQ.recv(sub1, String) == "foo"
+    ZMQ.Poller([pull1, pull2]) do poller
+        ZMQ.send(push1, "foo")
+        @test wait(poller) == ZMQ.PollResult(pull1, true, false)
+        @test ZMQ.recv(pull1, String) == "foo"
 
-        ZMQ.send(pub2, "bar")
-        @test wait(poller) == ZMQ.PollResult(sub2, true, false)
-        @test ZMQ.recv(sub2, String) == "bar"
+        ZMQ.send(push2, "bar")
+        @test wait(poller) == ZMQ.PollResult(pull2, true, false)
+        @test ZMQ.recv(pull2, String) == "bar"
     end
 
     # Test behaviour when a waiter task dies, e.g. because the socket is closed
-    ZMQ.Poller([sub1, sub2]) do poller
-        close(sub1)
-        @test_warn r"Socket error when polling" @test_throws ErrorException wait(poller)
+    ZMQ.Poller([pull1, pull2]) do poller
+        close(pull1)
+        @test_throws StateError wait(poller)
     end
 
     # It shouldn't be possible to create a poller with closed sockets
-    @test_throws ArgumentError ZMQ.Poller([sub1])
+    @test_throws ArgumentError ZMQ.Poller([pull1])
 
     # Test timeouts and cancellation
-    ZMQ.Poller([sub2]) do poller
+    ZMQ.Poller([pull2]) do poller
         # Sanity test
-        ZMQ.send(pub2, "foo")
-        @test wait(poller; timeout=0.1) == ZMQ.PollResult(sub2, true, false)
-        @test ZMQ.recv(sub2, String) == "foo"
+        ZMQ.send(push2, "foo")
+        @test wait(poller; timeout=0.1) == ZMQ.PollResult(pull2, true, false)
+        @test ZMQ.recv(pull2, String) == "foo"
 
         # Test timeouts work
         e = @elapsed @test_throws ZMQ.TimeoutError wait(poller; timeout=0.1)
@@ -373,15 +539,15 @@ end
         # this should not hang because the channel should have space for one
         # cancellation message without blocking.
         ZMQ.cancel(poller, :foo)
-        ZMQ.send(pub2, "foo")
-        @test wait(poller) == ZMQ.PollResult(sub2, true, false)
-        @test ZMQ.recv(sub2, String) == "foo"
+        ZMQ.send(push2, "foo")
+        @test wait(poller) == ZMQ.PollResult(pull2, true, false)
+        @test ZMQ.recv(pull2, String) == "foo"
     end
 
     # Test closing the poller from different tasks. Repeat 10 times to try to
     # trigger any race conditions.
     for _ in 1:10
-        ZMQ.Poller([sub2]) do poller
+        ZMQ.Poller([pull2]) do poller
             t = Threads.@spawn wait(poller)
 
             if rand() > 0.5
@@ -395,21 +561,21 @@ end
         end
     end
 
-    poller = ZMQ.Poller([sub2])
-    @test repr(poller) == "ZMQ.Poller([Socket(SUB, inproc://pub2)])"
+    poller = ZMQ.Poller([pull2])
+    @test repr(poller) == "ZMQ.Poller([Socket(PULL, inproc://push2)])"
     close(poller)
-    @test repr(poller) == "ZMQ.Poller([Socket(SUB, inproc://pub2)]) (closed)"
+    @test repr(poller) == "ZMQ.Poller([Socket(PULL, inproc://push2)]) (closed)"
 
-    close(sub1)
-    close(sub2)
-    close(pub1)
-    close(pub2)
+    close(pull1)
+    close(pull2)
+    close(push1)
+    close(push2)
 end
 
 @testset "Utilities" begin
     @test ZMQ.lib_version() isa VersionNumber
-    @test repr(ZMQ.StateError("foo")) == "ZMQ: foo"
-    @test repr(ZMQ.TimeoutError("Foo", 1.2)) == "ZMQ.TimeoutError: Foo"
+    @test sprint(showerror, ZMQ.StateError("foo")) == "ZMQ: foo"
+    @test sprint(showerror, ZMQ.TimeoutError("Foo", 1.2)) == "ZMQ.TimeoutError: Foo"
 end
 
 @testset "Aqua.jl" begin

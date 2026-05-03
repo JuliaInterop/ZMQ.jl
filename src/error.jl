@@ -16,8 +16,8 @@ struct TimeoutError <: Exception
     timeout_secs::Float64
 end
 
-Base.show(io::IO, thiserr::StateError) = print(io, "ZMQ: ", thiserr.msg)
-Base.show(io::IO, thiserr::TimeoutError) = print(io, TimeoutError, ": $(thiserr.msg)")
+Base.showerror(io::IO, thiserr::StateError) = print(io, "ZMQ: ", thiserr.msg)
+Base.showerror(io::IO, thiserr::TimeoutError) = print(io, TimeoutError, ": $(thiserr.msg)")
 
 # Basic functions
 
