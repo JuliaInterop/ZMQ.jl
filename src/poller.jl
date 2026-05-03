@@ -127,6 +127,8 @@ function Base.show(io::IO, poller::Poller)
     print(io, Poller, "([$sockets])", close_str)
 end
 
+Base.isopen(poller::Poller) = isopen(poller.channel)
+
 # Long-running function to watch a socket.
 function handle_pollitem(item::PollItem, poller::Poller)
     events = 0
@@ -330,19 +332,21 @@ function Base.wait(poller::Poller; timeout::Real=-1)
 
         coordinator_wait(poller.barrier)
 
-        # Re-notify the sockets to clear any old WAKEUP events from the
-        # FDWatcher. Necessary because FDWatcher is level-triggered and we don't
-        # want old WAKEUP events from being incorrectly used the next time
-        # wait() is called. In practice this may result in wait(socket)
-        # spuriously returning, but that's ok because the waiters always use
-        # zmq_poll() to check the real state of the socket.
-        for item in poller.items
-            if isopen(item.socket)
-                notify(item.socket)
-            end
-        end
+        # Clear any old WAKEUP events from the FDWatcher. Necessary because
+        # FDWatcher is level-triggered and we don't want old WAKEUP events from
+        # being incorrectly used the next time wait() is called.
+        clear_wakeup_events(poller)
 
         notify(poller.wait_in_progress)
+    end
+end
+
+function clear_wakeup_events(poller::Poller)
+    for item in poller.items
+        if isopen(item.socket)
+            pollfd = getfield(item.socket, :pollfd)
+            pollfd.watcher.events &= ~WAKEUP
+        end
     end
 end
 
@@ -353,14 +357,23 @@ Close a [`Poller`](@ref). It does not close the pollers sockets. This function
 is threadsafe and can be called at any time.
 """
 function Base.close(poller::Poller)
-    # Close the channel and barrier so all waiters exit
+    # Close the channel and barrier so all waiters will exit
     close(poller.channel)
     close(poller.barrier)
+
+    # Wakeup any waiters waiting on the socket
+    for item in poller.items
+        if isopen(item.socket)
+            notify(item.socket, WAKEUP)
+        end
+    end
 
     # Wait for the waiters
     for t in poller.tasks
         wait(t)
     end
+
+    clear_wakeup_events(poller)
 
     # Wait for any wait(::Poller) call to finish. This is necessary because
     # wait(::Poller) notifies the sockets and we want to ensure all of those
