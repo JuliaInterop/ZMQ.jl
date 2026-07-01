@@ -1,7 +1,3 @@
-# This is the next bit up from what libuv can return:
-# https://github.com/JuliaLang/julia/blob/b907bd0600f7041cce39a028cd63a1e154b42d62/stdlib/FileWatching/src/FileWatching.jl#L54-L57
-const WAKEUP = Int32(1 << 5)
-
 """
 A ZMQ socket.
 """
@@ -21,8 +17,7 @@ mutable struct Socket
             throw(StateError(jl_zmq_error_str()))
         end
         socket = new(p, ctx)
-        # The extra WAKEUP flag is to watch for wakeup notifications from the poller
-        setfield!(socket, :pollfd, FDWatcher(fd(socket), FDEvent(UV_READABLE | WAKEUP)))
+        setfield!(socket, :pollfd, FDWatcher(fd(socket), FDEvent(UV_READABLE)))
         finalizer(close, socket)
         push!(getfield(ctx, :sockets), WeakRef(socket))
         return socket
@@ -66,8 +61,18 @@ const _socket_type_names = Dict(
 
 function Base.show(io::IO, socket::Socket)
     if isopen(socket)
-        type_name = _socket_type_names[socket.type]
-        last_endpoint = socket.last_endpoint == "\0" ? "" : ", $(socket.last_endpoint[1:end-1])"
+        type_name, last_endpoint = try
+            _socket_type_names[socket.type], socket.last_endpoint
+        catch ex
+            if !(ex isa StateError)
+                rethrow()
+            end
+
+            print(io, Socket, "() (unknown state)")
+            return
+        end
+
+        last_endpoint = last_endpoint == "\0" ? "" : ", $(last_endpoint[1:end-1])"
         print(io, Socket, "($(type_name)$(last_endpoint))")
     else
         print(io, Socket, "() (closed)")

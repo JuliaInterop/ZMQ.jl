@@ -10,8 +10,9 @@ Changelog](https://keepachangelog.com).
 ## Unreleased
 
 ### Added
-- Implemented a [`Poller`](@ref) to poll multiple ZMQ sockets ([#262]). This
-  also required bumping the minimum supported Julia version to 1.10.
+- Implemented a [`Poller`](@ref) to poll multiple ZMQ sockets ([#262],
+  [#266]). This also required bumping the minimum supported Julia version to
+  1.10.
 
 ## [v1.5.1] - 2025-11-04
 

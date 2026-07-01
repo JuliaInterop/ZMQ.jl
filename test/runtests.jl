@@ -352,13 +352,13 @@ end
     # Test behaviour when a waiter task dies, e.g. because the socket is closed
     ZMQ.Poller([sub1, sub2]) do poller
         close(sub1)
-        @test_warn r"Socket error when polling" @test_throws ErrorException wait(poller)
+        @test_throws ZMQ.StateError wait(poller)
     end
 
     # It shouldn't be possible to create a poller with closed sockets
     @test_throws ArgumentError ZMQ.Poller([sub1])
 
-    # Test timeouts and cancellation
+    # Test timeouts
     ZMQ.Poller([sub2]) do poller
         # Sanity test
         ZMQ.send(pub2, "foo")
@@ -368,14 +368,6 @@ end
         # Test timeouts work
         e = @elapsed @test_throws ZMQ.TimeoutError wait(poller; timeout=0.1)
         @test e >= 0.1
-
-        # wait(::Poller) should ignore any existing cancellation messages. Also,
-        # this should not hang because the channel should have space for one
-        # cancellation message without blocking.
-        ZMQ.cancel(poller, :foo)
-        ZMQ.send(pub2, "foo")
-        @test wait(poller) == ZMQ.PollResult(sub2, true, false)
-        @test ZMQ.recv(sub2, String) == "foo"
     end
 
     # Test closing the poller from different tasks. Repeat 10 times to try to
