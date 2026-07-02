@@ -48,10 +48,13 @@ function Base.close(barrier::NotifiableBarrier)
     end
 end
 
-# This should be called by a waiter when it dies so it doesn't cause the
-# coordinator to hang.
+# Called when a waiter task exits. In normal shutdown, barrier.closed is
+# already true (set by close(barrier)) so this is a no-op. In error cases
+# where a waiter dies while the barrier is still active, this ensures the
+# coordinator doesn't hang waiting for all N waiters to check in.
 function handle_waiter_exit(barrier::NotifiableBarrier)
     @lock barrier.waiter_condition begin
+        barrier.closed && return # no need to update/notify if the barrier is closed
         barrier.count += 1
         if barrier.count == barrier.n
             notify(barrier)
@@ -60,10 +63,14 @@ function handle_waiter_exit(barrier::NotifiableBarrier)
     end
 end
 
-struct PollItem
-    socket::Socket
-    readable::Bool
-    writable::Bool
+mutable struct PollItem
+    const socket::Socket
+    const readable::Bool
+    const writable::Bool
+    const lock::Threads.ReentrantLock
+    socket_waiter::Task
+
+    PollItem(socket, readable, writable) = new(socket, readable, writable, ReentrantLock())
 end
 
 """
@@ -73,7 +80,10 @@ This object can be passed to a [`Poller`](@ref) to indicate whether the poller
 should wait for `socket` to become readable (`ZMQ_POLLIN`) or writable
 (`ZMQ_POLLOUT`).
 """
-PollItem(socket::Socket; readable=true, writable=false) = PollItem(socket, readable, writable)
+function PollItem(socket::Socket; readable=true, writable=false)
+    readable || writable || throw(ArgumentError("at least one poll state (readable or writable) must be set true"))
+    PollItem(socket, readable, writable)
+end
 
 """
 This object represents an event on a socket. It's returned by
@@ -116,7 +126,7 @@ close(poller)
 struct Poller
     items::Vector{PollItem}
     tasks::Vector{Task}
-    wait_in_progress::Base.Event
+    not_waiting::Base.Event
     barrier::NotifiableBarrier
     channel::Channel{Union{PollResult, Symbol}}
 end
@@ -127,54 +137,136 @@ function Base.show(io::IO, poller::Poller)
     print(io, Poller, "([$sockets])", close_str)
 end
 
+Base.isopen(poller::Poller) = isopen(poller.channel)
+
+function respawn_waiter(item)
+    @lock item.lock begin
+        if isdefined(item, :socket_waiter) && !istaskdone(item.socket_waiter)
+            throw(AssertionError("pre-existing socket waiters must be done before a new socket waiter task can be spawned"))
+        end
+        item.socket_waiter = Threads.@spawn wait(item.socket)
+    end
+end
+
+function cancel_socket_wait(item)
+    socket = item.socket
+    @lock item.lock begin
+        isdefined(item, :socket_waiter) || return
+        isopen(socket) || return
+        istaskdone(item.socket_waiter) && return
+
+        pollfd = getfield(socket, :pollfd)
+        fdw = pollfd.watcher
+        # hold fdwatcher lock to prevent race between checking istaskdone (no WAKEUP needed)
+        # and notify (which must interrupt/cancel an in progress socket wait)
+        fdevents = FDEvent(0)
+        haswaiters = false
+        @lock fdw.notify begin
+            istaskdone(item.socket_waiter) && return
+            # if the task is not already finished, the only possible states now (with notify
+            # lock held) are:
+            #   1. currently waiting on fdw.notify within _wait(::_FDWatcher) (needs notify'ed)
+            #   2. about to _wait(::_FDWatcher) (needs events set)
+            #   3. about to clear events with results of _wait(::_FDWatcher)
+            # a WAKEUP is needed in the first two cases to resolve things (socket_waiter WILL
+            # finish, and WAKEUP will be cleared)
+
+            fdevents = fdw.events
+            if fdw.events != 0
+                @assert isempty(fdw.notify)
+
+                # copied from FileWatching.uv_pollcb
+                if fdw.active[1] || fdw.active[2]
+                    fdw.active = (false, false)
+                    GC.@preserve fdw ccall(:uv_poll_stop, Int32, (Ptr{Cvoid},), fdw.handle)
+                end
+                @goto try_end # no return/break to end a try clause early
+            end
+
+            fdw.events |= WAKEUP # for the non-blocking fast path in _wait(::_FDWatcher)
+            haswaiters = notify(fdw.notify, WAKEUP) > 0 # for actively waiting tasks
+            @label try_end
+        end
+        try
+            # technically can throw if the fd/socket is concurrently closed between
+            # the internal _wait(::_FDWatcher) and the following isopen(::FDWatcher)
+            # however, it only matters that the task is done
+            wait(item.socket_waiter)
+        catch
+        end
+        if (fdw.events & WAKEUP) == WAKEUP
+            @debug begin
+                ebefore = fdevents
+                eafter = fdw.events
+                "Spurious WAKEUP set for $socket"
+            end haswaiters, ebefore=>eafter exception=(ErrorException("Spurious WAKEUP detected"), backtrace())
+            @lock fdw.notify fdw.events &= ~WAKEUP
+        end
+    end
+
+    return
+end
+
 # Long-running function to watch a socket.
 function handle_pollitem(item::PollItem, poller::Poller)
-    events = 0
-    events |= item.readable ? lib.ZMQ_POLLIN : 0
-    events |= item.writable ? lib.ZMQ_POLLOUT : 0
+    mask = 0
+    mask |= item.readable ? lib.ZMQ_POLLIN : 0
+    mask |= item.writable ? lib.ZMQ_POLLOUT : 0
 
-    c_pollitem = Ref(lib.zmq_pollitem_t(getfield(item.socket, :data),
-                                        lib.zmq_fd_t(0),
-                                        Cshort(events),
-                                        Cshort(0)))
     barrier = poller.barrier
 
     try
-        while isopen(poller.channel)
-            # Wait to arm the poller. This is the 1st place the function may block.
-            waiter_wait(poller.barrier)
-            if !isopen(poller.channel)
+        while isopen(poller)
+            # resting/disarmed block until barrier is notified (begins `wait(::Poller)`
+            waiter_wait(barrier)
+            if !isopen(poller)
+                cancel_socket_wait(item)
                 return
             end
 
-            # Wait for the socket. This is the 2nd place the function may block.
-            ret = lib.zmq_poll(c_pollitem, 1, 0)
-            event = FDEvent(0)
-            while ret == 0 && (event.events & WAKEUP) == 0
-                event = wait(item.socket)
-                ret = lib.zmq_poll(c_pollitem, 1, 0)
-            end
+            fdevents = FDEvent(0)
+            respawn_waiter(item)
+            while true
+                revents = try
+                    item.socket.events
+                catch err
+                    cancel_socket_wait(item)
+                    close(poller.channel, err)
+                    break
+                end
 
-            if ret == -1
-                throw(StateError("Socket error when polling $(item.socket): " * jl_zmq_error_str()))
-            end
+                if (revents & mask) != 0
+                    readable = (revents & lib.ZMQ_POLLIN) == lib.ZMQ_POLLIN
+                    writable = (revents & lib.ZMQ_POLLOUT) == lib.ZMQ_POLLOUT
+                    result = PollResult(item.socket, readable, writable)
 
-            if (event.events & WAKEUP) == WAKEUP
-                # If it was a dummy event from the poller then do nothing
-                continue
-            else
-                # Otherwise tell the poller we have something
-                readable = (c_pollitem[].revents & lib.ZMQ_POLLIN) == lib.ZMQ_POLLIN
-                writable = (c_pollitem[].revents & lib.ZMQ_POLLOUT) == lib.ZMQ_POLLOUT
-                result = PollResult(item.socket, readable, writable)
-                put!(poller.channel, result)
+                    cancel_socket_wait(item)
+                    put!(poller.channel, result)
+                    break
+                elseif (fdevents.events & WAKEUP) == WAKEUP
+                    # only reachable after the first loop iteration
+                    cancel_socket_wait(item)
+                    break
+                else
+                    fdevents = fetch(item.socket_waiter) # block until socket fd has changed
+                    respawn_waiter(item) # respawn socket waiter
+                end
             end
         end
-    catch ex
-        @error "Polling $(item.socket) failed." exception=(ex, catch_backtrace())
+    catch err
+        # reachable by:
+        #   1. `put!` on already closed channel
+        #   2. `fetch`ing a failed socket waiter
+        #   3. respawning failed
+        # in cases 1 & 2, the socket_waiter will already be canceled or done (failed)
+        cancel_socket_wait(item)
+        if isopen(poller.channel)
+            # only close if necessary, to avoid overwriting the error
+            close(poller.channel, err)
+        end
     finally
+        cancel_socket_wait(item)
         handle_waiter_exit(barrier)
-        close(poller.channel)
     end
 end
 
@@ -212,7 +304,7 @@ function Poller(items::Vector{PollItem})
     coordinator_wait(poller.barrier)
 
     # Signal the wait_in_progress Event since wait() has not been called yet
-    notify(poller.wait_in_progress)
+    notify(poller.not_waiting)
 
     return poller
 end
@@ -267,7 +359,7 @@ function Base.wait(poller::Poller; timeout::Real=-1)
     #   called.
     # - The function guarantees all the waiters will be at the barrier before the
     #   function returns.
-    # - poller.wait_in_progress will be unsignalled while the function is operating on the
+    # - poller.not_waiting will be unsignalled while the function is operating on the
     #   poller sockets.
 
     while isready(poller.channel)
@@ -282,7 +374,7 @@ function Base.wait(poller::Poller; timeout::Real=-1)
     end
 
     # Reset to ensure that close(::Poller) will wait for this call to finish
-    reset(poller.wait_in_progress)
+    reset(poller.not_waiting)
 
     # Arm all the waiters
     notify(poller.barrier)
@@ -296,15 +388,7 @@ function Base.wait(poller::Poller; timeout::Real=-1)
 
     try
         poll_result::Union{PollResult, Symbol} = Symbol()
-        try
-            poll_result = take!(poller.channel)
-        catch ex
-            if ex isa InvalidStateException
-                error("Poller was closed")
-            else
-                rethrow()
-            end
-        end
+        poll_result = take!(poller.channel)
 
         if poll_result isa Symbol
             if poll_result == :zmq_jl_timeout
@@ -315,34 +399,29 @@ function Base.wait(poller::Poller; timeout::Real=-1)
         else
             return poll_result
         end
+    catch ex
+        if ex isa InvalidStateException
+            error("Poller was closed")
+        else
+            rethrow()
+        end
     finally
         if !isnothing(timer)
             close(timer)
         end
 
-        # Disarm all the waiters and wait for them to synchronize so that there's no
-        # chance of the socket being used by multiple threads.
-        for item in poller.items
-            if isopen(item.socket)
-                notify(item.socket, WAKEUP)
+        # Disarm all the unfinished and unsynchronized waiters and wait for them to
+        # synchronize so that there's no chance of the socket being used by multiple
+        # threads.
+        for (t,item) in zip(poller.tasks, poller.items)
+            if !istaskdone(t)
+                cancel_socket_wait(item)
             end
         end
 
         coordinator_wait(poller.barrier)
 
-        # Re-notify the sockets to clear any old WAKEUP events from the
-        # FDWatcher. Necessary because FDWatcher is level-triggered and we don't
-        # want old WAKEUP events from being incorrectly used the next time
-        # wait() is called. In practice this may result in wait(socket)
-        # spuriously returning, but that's ok because the waiters always use
-        # zmq_poll() to check the real state of the socket.
-        for item in poller.items
-            if isopen(item.socket)
-                notify(item.socket)
-            end
-        end
-
-        notify(poller.wait_in_progress)
+        notify(poller.not_waiting)
     end
 end
 
@@ -353,7 +432,14 @@ Close a [`Poller`](@ref). It does not close the pollers sockets. This function
 is threadsafe and can be called at any time.
 """
 function Base.close(poller::Poller)
-    # Close the channel and barrier so all waiters exit
+    # Wakeup any in-progress waiters (brings all waiters back to the barrier sync point)
+    for (t,item) in zip(poller.tasks, poller.items)
+        if !istaskdone(t)
+            cancel_socket_wait(item)
+        end
+    end
+
+    # Close the channel and barrier so all waiters will exit
     close(poller.channel)
     close(poller.barrier)
 
@@ -366,5 +452,5 @@ function Base.close(poller::Poller)
     # wait(::Poller) notifies the sockets and we want to ensure all of those
     # operations are done before returning so that the user can safely close the
     # sockets or whatever.
-    wait(poller.wait_in_progress)
+    wait(poller.not_waiting)
 end
